@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Runner</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #111; }
+    canvas { display: block; margin: 0 auto; background: #1b1b1b; }
+    .hint { color:#bbb; font: 14px/1.4 system-ui, sans-serif; text-align:center; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div class="hint">Nuolinäppäimet: liiku. Välilyönti: hyppy. R: restart.</div>
+  <canvas id="game" width="900" height="450"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // ---------- Assets ----------
+  function loadImage(src) {
+    const img = new Image();
+    img.src = src;
+    img._ready = false;
+    img.onload = () => img._ready = true;
+    img.onerror = () => console.error("Image failed to load:", src);
+    return img;
+  }
+
+  const bg = loadImage("bg.png");
+  const playerImg = loadImage("player.png");
+
+  const rewardSources = [
+    "reward_trip_strawberry.png",
+    "reward_trip_raspberry.png",
+    "reward_trip_sugarfree_circus.png",
+    "reward_trip_watermelon.png",
+    "reward_trip_orange_cola.png",
+  ];
+  const rewardImgs = rewardSources.map(loadImage);
+
+  const obstacleSources = [
+    "obstacle_rock.png",
+    "obstacle_bag.png",
+    "obstacle_scooter.png",
+  ];
+  const obstacleImgs = obstacleSources.map(loadImage);
+
+  // Background tiling state
+  let bgX = 0;
+  let bgScale = 1;
+  let bgDrawW = 0;
+  const BG_SPEED_FACTOR = 0.35;
+
+  bg.onload = () => {
+    bg._ready = true;
+    bgScale = H / bg.naturalHeight;
+    bgDrawW = Math.round(bg.naturalWidth * bgScale); // integer reduces seams
+  };
+
+  // ---------- Game constants ----------
+  const GROUND_Y = 375;
+  const GRAVITY = 0.6;
+  const MOVE_SPEED = 5.0;
+  const JUMP_VELOCITY = -15.5;
+
+  // Suurempi arvo nostaa pelaajaa ylemmäs.
+  const PLAYER_Y_LIFT = 0;
+
+  // --- No-overlap spawning (sprites, not hitboxes) ---
+  // Separate gaps so changing obstacle spacing does NOT change pickup spacing.
+  const OBSTACLE_GAP_X = 400; // obstacle vs obstacle (minimum when they would overlap)
+  const PICKUP_GAP_X = 30;    // pickup vs pickup
+  const MIX_GAP_X = 40;       // obstacle vs pickup
+  const SPAWN_GAP_Y = 10;     // vertical safety gap in pixels
+
+  // --- Obstacle spawn spacing by distance (pixels), not by milliseconds ---
+  // These control how far the world scrolls before the next obstacle is spawned.
+  // Increase MAX and/or LONG_EXTRA ranges to get more long empty stretches.
+  const OBSTACLE_DIST_MIN = 320;
+  const OBSTACLE_DIST_MAX = 950;
+  const OBSTACLE_LONG_CHANCE = 0.20;
+  const OBSTACLE_LONG_EXTRA_MIN = 450;
+  const OBSTACLE_LONG_EXTRA_MAX = 1100;
+
+  const keys = new Set();
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") e.preventDefault();
+    keys.add(e.code);
+    if (e.code === "KeyR") reset();
+  });
+  window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function rectsOverlap(a, b) {
+    return (
+      a.x < b.x + b.w &&
+      a.x + a.w > b.x &&
+      a.y < b.y + b.h &&
+      a.y + a.h > b.y
+    );
+  }
+
+  function rectsOverlapPad(a, b, padX, padY) {
+    return (
+      (a.x - padX) < (b.x + b.w + padX) &&
+      (a.x + a.w + padX) > (b.x - padX) &&
+      (a.y - padY) < (b.y + b.h + padY) &&
+      (a.y + a.h + padY) > (b.y - padY)
+    );
+  }
+
+  // Returns sprite rect for an obstacle based on its stored draw info
+  function obstacleSpriteRect(ob) {
+    return {
+      x: ob.x - ob.offX,
+      y: ob.y - ob.offY,
+      w: ob.drawW,
+      h: ob.drawH
+    };
+  }
+
+  function collectObstacleSpriteRects() {
+    return obstacles.map(obstacleSpriteRect);
+  }
+
+  function collectPickupSpriteRects() {
+    return pickups.map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h }));
+  }
+
+  // Push candidate to the right until it does not overlap any existing rect
+  function resolveSpawnX(candidateRect, existingRects, padX, padY) {
+    let safety = 0;
+    let moved = true;
+
+    while (moved && safety < 60) {
+      moved = false;
+      safety++;
+
+      for (const r of existingRects) {
+        if (rectsOverlapPad(candidateRect, r, padX, padY)) {
+          candidateRect.x = r.x + r.w + padX;
+          moved = true;
+        }
+      }
+    }
+  }
+
+  function pickNextObstacleDistance() {
+    let d = rand(OBSTACLE_DIST_MIN, OBSTACLE_DIST_MAX);
+    if (Math.random() < OBSTACLE_LONG_CHANCE) {
+      d += rand(OBSTACLE_LONG_EXTRA_MIN, OBSTACLE_LONG_EXTRA_MAX);
+    }
+    return d;
+  }
+
+  // ---------- Player ----------
+  const player = {
+    x: 100,
+    y: GROUND_Y - 45 - PLAYER_Y_LIFT,
+    w: 70,
+    h: 45,
+    drawW: 95,
+    drawH: 160,
+    vx: 0,
+    vy: 0,
+    onGround: true,
+    facing: 1,
+  };
+
+  // ---------- World state ----------
+  let obstacles = []; // {type, x,y,w,h, drawW,drawH, offX,offY}
+  let pickups = [];  // {type, x,y,w,h, collected}
+  let score = 0;
+  let gameOver = false;
+
+  // Difficulty
+  let worldSpeed = 3.2;
+  let spawnPickupTimer = 0;
+
+  // Distance-based obstacle spawning state
+  let obstacleDistLeft = 0;
+
+  function reset() {
+    player.x = 100;
+    player.y = GROUND_Y - player.h - PLAYER_Y_LIFT;
+    player.vx = 0;
+    player.vy = 0;
+    player.onGround = true;
+    player.facing = 1;
+
+    obstacles = [];
+    pickups = [];
+    score = 0;
+    gameOver = false;
+
+    worldSpeed = 3.2;
+    spawnPickupTimer = 0;
+
+    bgX = 0;
+
+    obstacleDistLeft = pickNextObstacleDistance();
+  }
+
+  // ---------- Spawning ----------
+  function spawnPickup() {
+    const type = Math.floor(Math.random() * rewardImgs.length);
+
+    const drawH = 72;
+    const img = rewardImgs[type];
+    const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 0.43;
+    const drawW = Math.max(28, Math.round(drawH * ratio));
+
+    const inAir = Math.random() < 0.65;
+    const yAir = (GROUND_Y - player.h - PLAYER_Y_LIFT - 110 - Math.random() * 80);
+    const yGround = (GROUND_Y - drawH - 6);
+    const y = clamp(inAir ? yAir : yGround, 30, GROUND_Y - drawH - 6);
+
+    const cand = { x: W + 20, y, w: drawW, h: drawH };
+
+    resolveSpawnX(cand, collectPickupSpriteRects(), PICKUP_GAP_X, SPAWN_GAP_Y);
+    resolveSpawnX(cand, collectObstacleSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+
+    pickups.push({
+      type,
+      x: cand.x,
+      y: cand.y,
+      w: cand.w,
+      h: cand.h,
+      collected: false
+    });
+  }
+
+  function spawnObstacle() {
+    const type = Math.floor(Math.random() * obstacleImgs.length);
+
+    const drawH =
+      type === 0 ? 55 :   // rock
+      type === 1 ? 60 :   // bag
+      95;                 // scooter
+
+    const img = obstacleImgs[type];
+    const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.6;
+    const drawW = Math.max(55, Math.round(drawH * ratio));
+
+    const boxW = Math.round(drawW * (type === 2 ? 0.70 : 0.65));
+    const boxH = Math.round(drawH * (type === 1 ? 0.70 : 0.60));
+
+    const offX = Math.round((drawW - boxW) / 2);
+    const offY = Math.round(drawH - boxH);
+
+    const candSprite = {
+      x: W + 20,
+      y: GROUND_Y - drawH,
+      w: drawW,
+      h: drawH
+    };
+
+    resolveSpawnX(candSprite, collectObstacleSpriteRects(), OBSTACLE_GAP_X, SPAWN_GAP_Y);
+    resolveSpawnX(candSprite, collectPickupSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+
+    const drawX = candSprite.x;
+    const drawY = candSprite.y;
+    const x = drawX + offX;
+    const y = drawY + offY;
+
+    obstacles.push({
+      type,
+      x, y, w: boxW, h: boxH,
+      drawW, drawH,
+      offX, offY
+    });
+  }
+
+  // ---------- Update ----------
+  function update(dt) {
+    if (gameOver) return;
+
+    // Background scroll
+    if (bg._ready && bgDrawW > 0) {
+      bgX -= worldSpeed * BG_SPEED_FACTOR;
+      if (bgX <= -bgDrawW) bgX += bgDrawW;
+      if (bgX > 0) bgX -= bgDrawW;
+    }
+
+    // Speed ramps up slowly
+    worldSpeed += 0.00020 * dt;
+
+    // Input
+    let dir = 0;
+    if (keys.has("ArrowLeft")) dir -= 1;
+    if (keys.has("ArrowRight")) dir += 1;
+    player.vx = dir * MOVE_SPEED;
+    if (dir !== 0) player.facing = dir;
+
+    // Jump
+    if (keys.has("Space") && player.onGround) {
+      player.vy = JUMP_VELOCITY;
+      player.onGround = false;
+    }
+
+    // Physics
+    player.vy += GRAVITY;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // Boundaries
+    player.x = clamp(player.x, 0, W - player.w);
+
+    // Ground collision
+    const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
+    if (player.y + player.h >= effectiveGround) {
+      player.y = effectiveGround - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    }
+
+    // Spawning: obstacles by distance (pixels scrolled)
+    obstacleDistLeft -= worldSpeed;
+    if (obstacleDistLeft <= 0) {
+      spawnObstacle();
+      obstacleDistLeft = pickNextObstacleDistance();
+    }
+
+    // Spawning: pickups can stay timer-based
+    spawnPickupTimer -= dt;
+    if (spawnPickupTimer <= 0) {
+      spawnPickup();
+      spawnPickupTimer = 450 + Math.random() * 450;
+    }
+
+    // Move world objects
+    for (const ob of obstacles) ob.x -= worldSpeed;
+    for (const p of pickups) p.x -= worldSpeed;
+
+    // Cleanup off-screen
+    obstacles = obstacles.filter(ob => ob.x + ob.w > -120);
+    pickups = pickups.filter(p => p.x + p.w > -120 && !p.collected);
+
+    // Collisions: obstacles
+    for (const ob of obstacles) {
+      if (rectsOverlap(player, ob)) {
+        gameOver = true;
+        return;
+      }
+    }
+
+    // Collisions: pickups
+    for (const p of pickups) {
+      if (!p.collected && rectsOverlap(player, p)) {
+        p.collected = true;
+        score += 100;
+      }
+    }
+
+    // Score trickle
+    score += 0.01 * dt;
+  }
+
+  // ---------- Draw ----------
+  function draw() {
+    // Background
+    if (bg._ready && bgDrawW > 0) {
+      const x0 = Math.floor(bgX);
+      for (let x = x0; x < W; x += bgDrawW) {
+        ctx.drawImage(bg, x, 0, bgDrawW, H);
+      }
+    } else {
+      ctx.clearRect(0, 0, W, H);
+    }
+
+    // Pickups
+    for (const p of pickups) {
+      const img = rewardImgs[p.type];
+      if (img && img._ready) {
+        ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
+      } else {
+        ctx.fillStyle = "#ffd54a";
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
+    }
+
+    // Obstacles
+    for (const ob of obstacles) {
+      const img = obstacleImgs[ob.type];
+      const drawX = Math.round(ob.x - ob.offX);
+      const drawY = Math.round(ob.y - ob.offY);
+
+      if (img && img._ready) {
+        ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
+      } else {
+        ctx.fillStyle = "#ff5a5a";
+        ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+      }
+    }
+
+    // Player
+    if (playerImg._ready) {
+      const drawX = player.x + player.w / 2 - player.drawW / 2;
+      const drawY = player.y + player.h - player.drawH;
+
+      ctx.save();
+      if (player.facing === -1) {
+        ctx.translate(drawX + player.drawW / 2, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-(drawX + player.drawW / 2), 0);
+      }
+      ctx.drawImage(playerImg, Math.round(drawX), Math.round(drawY), player.drawW, player.drawH);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "#e6e6e6";
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+    }
+
+    // HUD
+    ctx.fillStyle = "#cfcfcf";
+    ctx.font = "16px system-ui, sans-serif";
+    ctx.fillText("Score: " + Math.floor(score), 12, 24);
+    ctx.fillText("Speed: " + worldSpeed.toFixed(1), 12, 44);
+
+    if (gameOver) {
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#fff";
+      ctx.font = "28px system-ui, sans-serif";
+      ctx.fillText("Game Over", W/2 - 80, H/2 - 10);
+      ctx.font = "16px system-ui, sans-serif";
+      ctx.fillText("Paina R aloittaaksesi alusta", W/2 - 120, H/2 + 20);
+    }
+  }
+
+  // ---------- Loop ----------
+  let last = performance.now();
+  function loop(now) {
+    const dt = now - last;
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
