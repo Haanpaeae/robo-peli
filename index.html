@@ -6,12 +6,19 @@
   <title>Simple Runner</title>
   <style>
     html, body { height: 100%; margin: 0; background: #111; }
-    canvas { display: block; margin: 0 auto; background: #1b1b1b; }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #1b1b1b;
+      touch-action: none; /* est‰‰ scrollin ja pinch-zoomin canvasin p‰‰ll‰ */
+      width: min(100vw, 900px);
+      height: auto;
+    }
     .hint { color:#bbb; font: 14px/1.4 system-ui, sans-serif; text-align:center; margin: 10px 0; }
   </style>
 </head>
 <body>
-  <div class="hint">Nuolin√§pp√§imet: liiku. V√§lily√∂nti: hyppy. R: restart.</div>
+  <div class="hint">Desktop: nuolin‰pp‰imet liiku, v‰lilyˆnti hyppy, R restart. Mobiili: napauta hyppy, napauta Game Overissa restart.</div>
   <canvas id="game" width="900" height="450"></canvas>
 
 <script>
@@ -21,6 +28,11 @@
 
   const W = canvas.width;
   const H = canvas.height;
+
+  // ---------- Device mode ----------
+  const IS_MOBILE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap to jump
+  const MOBILE_PLAYER_X = 120;       // mihin kohtaan hahmo "ankkuroidaan" mobiilissa
 
   // ---------- Assets ----------
   function loadImage(src) {
@@ -60,7 +72,7 @@
   bg.onload = () => {
     bg._ready = true;
     bgScale = H / bg.naturalHeight;
-    bgDrawW = Math.round(bg.naturalWidth * bgScale); // integer reduces seams
+    bgDrawW = Math.round(bg.naturalWidth * bgScale);
   };
 
   // ---------- Game constants ----------
@@ -69,32 +81,44 @@
   const MOVE_SPEED = 5.0;
   const JUMP_VELOCITY = -15.5;
 
-  // Suurempi arvo nostaa pelaajaa ylemm√§s.
   const PLAYER_Y_LIFT = 0;
 
   // --- No-overlap spawning (sprites, not hitboxes) ---
-  // Separate gaps so changing obstacle spacing does NOT change pickup spacing.
-  const OBSTACLE_GAP_X = 400; // obstacle vs obstacle (minimum when they would overlap)
-  const PICKUP_GAP_X = 30;    // pickup vs pickup
-  const MIX_GAP_X = 40;       // obstacle vs pickup
-  const SPAWN_GAP_Y = 10;     // vertical safety gap in pixels
+  const OBSTACLE_GAP_X = 400;
+  const PICKUP_GAP_X = 30;
+  const MIX_GAP_X = 40;
+  const SPAWN_GAP_Y = 10;
 
-  // --- Obstacle spawn spacing by distance (pixels), not by milliseconds ---
-  // These control how far the world scrolls before the next obstacle is spawned.
-  // Increase MAX and/or LONG_EXTRA ranges to get more long empty stretches.
+  // --- Obstacle spawn spacing by distance (pixels) ---
   const OBSTACLE_DIST_MIN = 320;
   const OBSTACLE_DIST_MAX = 950;
   const OBSTACLE_LONG_CHANCE = 0.20;
   const OBSTACLE_LONG_EXTRA_MIN = 450;
   const OBSTACLE_LONG_EXTRA_MAX = 1100;
 
+  // ---------- Input ----------
   const keys = new Set();
+  let tapJumpQueued = false;
+
   window.addEventListener("keydown", (e) => {
     if (e.code === "Space") e.preventDefault();
     keys.add(e.code);
     if (e.code === "KeyR") reset();
   });
   window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+  // Mobiili: tap canvas = hyppy, game overissa tap = restart
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!MOBILE_TAP_ONLY) return;
+    e.preventDefault();
+
+    if (gameOver) {
+      reset();
+      return;
+    }
+
+    tapJumpQueued = true;
+  }, { passive: false });
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
   function rand(min, max) { return min + Math.random() * (max - min); }
@@ -117,25 +141,12 @@
     );
   }
 
-  // Returns sprite rect for an obstacle based on its stored draw info
   function obstacleSpriteRect(ob) {
-    return {
-      x: ob.x - ob.offX,
-      y: ob.y - ob.offY,
-      w: ob.drawW,
-      h: ob.drawH
-    };
+    return { x: ob.x - ob.offX, y: ob.y - ob.offY, w: ob.drawW, h: ob.drawH };
   }
+  function collectObstacleSpriteRects() { return obstacles.map(obstacleSpriteRect); }
+  function collectPickupSpriteRects() { return pickups.map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h })); }
 
-  function collectObstacleSpriteRects() {
-    return obstacles.map(obstacleSpriteRect);
-  }
-
-  function collectPickupSpriteRects() {
-    return pickups.map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h }));
-  }
-
-  // Push candidate to the right until it does not overlap any existing rect
   function resolveSpawnX(candidateRect, existingRects, padX, padY) {
     let safety = 0;
     let moved = true;
@@ -155,15 +166,13 @@
 
   function pickNextObstacleDistance() {
     let d = rand(OBSTACLE_DIST_MIN, OBSTACLE_DIST_MAX);
-    if (Math.random() < OBSTACLE_LONG_CHANCE) {
-      d += rand(OBSTACLE_LONG_EXTRA_MIN, OBSTACLE_LONG_EXTRA_MAX);
-    }
+    if (Math.random() < OBSTACLE_LONG_CHANCE) d += rand(OBSTACLE_LONG_EXTRA_MIN, OBSTACLE_LONG_EXTRA_MAX);
     return d;
   }
 
   // ---------- Player ----------
   const player = {
-    x: 100,
+    x: MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100,
     y: GROUND_Y - 45 - PLAYER_Y_LIFT,
     w: 70,
     h: 45,
@@ -176,20 +185,18 @@
   };
 
   // ---------- World state ----------
-  let obstacles = []; // {type, x,y,w,h, drawW,drawH, offX,offY}
-  let pickups = [];  // {type, x,y,w,h, collected}
+  let obstacles = [];
+  let pickups = [];
   let score = 0;
   let gameOver = false;
 
-  // Difficulty
   let worldSpeed = 3.2;
   let spawnPickupTimer = 0;
 
-  // Distance-based obstacle spawning state
   let obstacleDistLeft = 0;
 
   function reset() {
-    player.x = 100;
+    player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
     player.y = GROUND_Y - player.h - PLAYER_Y_LIFT;
     player.vx = 0;
     player.vy = 0;
@@ -207,6 +214,7 @@
     bgX = 0;
 
     obstacleDistLeft = pickNextObstacleDistance();
+    tapJumpQueued = false;
   }
 
   // ---------- Spawning ----------
@@ -228,14 +236,7 @@
     resolveSpawnX(cand, collectPickupSpriteRects(), PICKUP_GAP_X, SPAWN_GAP_Y);
     resolveSpawnX(cand, collectObstacleSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
 
-    pickups.push({
-      type,
-      x: cand.x,
-      y: cand.y,
-      w: cand.w,
-      h: cand.h,
-      collected: false
-    });
+    pickups.push({ type, x: cand.x, y: cand.y, w: cand.w, h: cand.h, collected: false });
   }
 
   function spawnObstacle() {
@@ -256,12 +257,7 @@
     const offX = Math.round((drawW - boxW) / 2);
     const offY = Math.round(drawH - boxH);
 
-    const candSprite = {
-      x: W + 20,
-      y: GROUND_Y - drawH,
-      w: drawW,
-      h: drawH
-    };
+    const candSprite = { x: W + 20, y: GROUND_Y - drawH, w: drawW, h: drawH };
 
     resolveSpawnX(candSprite, collectObstacleSpriteRects(), OBSTACLE_GAP_X, SPAWN_GAP_Y);
     resolveSpawnX(candSprite, collectPickupSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
@@ -271,12 +267,7 @@
     const x = drawX + offX;
     const y = drawY + offY;
 
-    obstacles.push({
-      type,
-      x, y, w: boxW, h: boxH,
-      drawW, drawH,
-      offX, offY
-    });
+    obstacles.push({ type, x, y, w: boxW, h: boxH, drawW, drawH, offX, offY });
   }
 
   // ---------- Update ----------
@@ -293,26 +284,30 @@
     // Speed ramps up slowly
     worldSpeed += 0.00020 * dt;
 
-    // Input
-    let dir = 0;
-    if (keys.has("ArrowLeft")) dir -= 1;
-    if (keys.has("ArrowRight")) dir += 1;
-    player.vx = dir * MOVE_SPEED;
-    if (dir !== 0) player.facing = dir;
+    // Input and movement
+    if (MOBILE_TAP_ONLY) {
+      player.vx = 0;
+      player.x = MOBILE_PLAYER_X;
+    } else {
+      let dir = 0;
+      if (keys.has("ArrowLeft")) dir -= 1;
+      if (keys.has("ArrowRight")) dir += 1;
+      player.vx = dir * MOVE_SPEED;
+      if (dir !== 0) player.facing = dir;
+      player.x += player.vx;
+      player.x = clamp(player.x, 0, W - player.w);
+    }
 
-    // Jump
-    if (keys.has("Space") && player.onGround) {
+    const jumpPressed = keys.has("Space") || (MOBILE_TAP_ONLY && tapJumpQueued);
+    if (jumpPressed && player.onGround) {
       player.vy = JUMP_VELOCITY;
       player.onGround = false;
     }
+    tapJumpQueued = false;
 
     // Physics
     player.vy += GRAVITY;
-    player.x += player.vx;
     player.y += player.vy;
-
-    // Boundaries
-    player.x = clamp(player.x, 0, W - player.w);
 
     // Ground collision
     const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
@@ -322,14 +317,14 @@
       player.onGround = true;
     }
 
-    // Spawning: obstacles by distance (pixels scrolled)
+    // Spawning: obstacles by distance
     obstacleDistLeft -= worldSpeed;
     if (obstacleDistLeft <= 0) {
       spawnObstacle();
       obstacleDistLeft = pickNextObstacleDistance();
     }
 
-    // Spawning: pickups can stay timer-based
+    // Spawning: pickups by timer
     spawnPickupTimer -= dt;
     if (spawnPickupTimer <= 0) {
       spawnPickup();
@@ -360,7 +355,6 @@
       }
     }
 
-    // Score trickle
     score += 0.01 * dt;
   }
 
@@ -369,9 +363,7 @@
     // Background
     if (bg._ready && bgDrawW > 0) {
       const x0 = Math.floor(bgX);
-      for (let x = x0; x < W; x += bgDrawW) {
-        ctx.drawImage(bg, x, 0, bgDrawW, H);
-      }
+      for (let x = x0; x < W; x += bgDrawW) ctx.drawImage(bg, x, 0, bgDrawW, H);
     } else {
       ctx.clearRect(0, 0, W, H);
     }
@@ -379,12 +371,8 @@
     // Pickups
     for (const p of pickups) {
       const img = rewardImgs[p.type];
-      if (img && img._ready) {
-        ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
-      } else {
-        ctx.fillStyle = "#ffd54a";
-        ctx.fillRect(p.x, p.y, p.w, p.h);
-      }
+      if (img && img._ready) ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
+      else { ctx.fillStyle = "#ffd54a"; ctx.fillRect(p.x, p.y, p.w, p.h); }
     }
 
     // Obstacles
@@ -392,13 +380,8 @@
       const img = obstacleImgs[ob.type];
       const drawX = Math.round(ob.x - ob.offX);
       const drawY = Math.round(ob.y - ob.offY);
-
-      if (img && img._ready) {
-        ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
-      } else {
-        ctx.fillStyle = "#ff5a5a";
-        ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
-      }
+      if (img && img._ready) ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
+      else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
     }
 
     // Player
@@ -407,7 +390,7 @@
       const drawY = player.y + player.h - player.drawH;
 
       ctx.save();
-      if (player.facing === -1) {
+      if (!MOBILE_TAP_ONLY && player.facing === -1) {
         ctx.translate(drawX + player.drawW / 2, 0);
         ctx.scale(-1, 1);
         ctx.translate(-(drawX + player.drawW / 2), 0);
@@ -428,11 +411,13 @@
     if (gameOver) {
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(0, 0, W, H);
+
       ctx.fillStyle = "#fff";
       ctx.font = "28px system-ui, sans-serif";
       ctx.fillText("Game Over", W/2 - 80, H/2 - 10);
+
       ctx.font = "16px system-ui, sans-serif";
-      ctx.fillText("Paina R aloittaaksesi alusta", W/2 - 120, H/2 + 20);
+      ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W/2 - 135, H/2 + 20);
     }
   }
 
