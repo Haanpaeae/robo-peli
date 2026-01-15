@@ -10,7 +10,7 @@
       display: block;
       margin: 0 auto;
       background: #1b1b1b;
-      touch-action: none; /* estää scrollin ja pinch-zoomin canvasin päällä */
+      touch-action: none;
       width: min(100vw, 900px);
       height: auto;
     }
@@ -18,7 +18,7 @@
   </style>
 </head>
 <body>
-  <div class="hint">Desktop: nuolinäppäimet liiku, välilyönti hyppy, R restart. Mobiili: napauta hyppy, napauta Game Overissa restart.</div>
+  <div class="hint">Desktop: nuolinäppäimet liiku, välilyönti hyppy (pidä pohjassa = pidempi), R restart. Mobiili: napauta hyppy (pidä painettuna = pidempi), napauta Game Overissa restart.</div>
   <canvas id="game" width="900" height="450"></canvas>
 
 <script>
@@ -31,15 +31,15 @@
 
   // ---------- Device mode ----------
   const IS_MOBILE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap to jump
-  const MOBILE_PLAYER_X = 120;       // mihin kohtaan hahmo "ankkuroidaan" mobiilissa
+  const MOBILE_TAP_ONLY = IS_MOBILE;
+  const MOBILE_PLAYER_X = 120;
 
   // ---------- Timing normalization ----------
-  const BASE_DT_MS = 1000 / 60;       // 60 fps baseline
-  const MAX_DT_MULT = 2.0;            // clampaa piikit (välilehden vaihto ym.)
-  function dtMul(dtMs) {
-    return clamp(dtMs / BASE_DT_MS, 0, MAX_DT_MULT);
-  }
+  const BASE_DT_MS = 1000 / 60;
+  const MAX_DT_MULT = 2.0;
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function dtMul(dtMs) { return clamp(dtMs / BASE_DT_MS, 0, MAX_DT_MULT); }
+  function rand(min, max) { return min + Math.random() * (max - min); }
 
   // ---------- Assets ----------
   function loadImage(src) {
@@ -84,13 +84,21 @@
 
   // ---------- Game constants ----------
   const GROUND_Y = 375;
+
+  // Base jump physics (tuning)
   const GRAVITY = 0.6;
   const MOVE_SPEED = 5.0;
   const JUMP_VELOCITY = -15.5;
 
   const PLAYER_Y_LIFT = 0;
 
-  // --- No-overlap spawning (sprites, not hitboxes) ---
+  // --- Variable jump (hold to extend) ---
+  // Pidä näitä arvoja säätöön:
+  const JUMP_HOLD_MAX_MS = 160;   // kuinka kauan hold vaikuttaa
+  const JUMP_HOLD_GRAVITY_SCALE = 0.45; // painovoiman kerroin holdin aikana (pienempi = pidempi hyppy)
+  // vaihtoehtona olisi "lisäylöspäin voima", mutta gravitaation pienennys on tasaisempi
+
+  // --- No-overlap spawning (sprites) ---
   const OBSTACLE_GAP_X = 400;
   const PICKUP_GAP_X = 30;
   const MIX_GAP_X = 40;
@@ -105,15 +113,29 @@
 
   // ---------- Input ----------
   const keys = new Set();
-  let tapJumpQueued = false;
+
+  // jump input state (mobile + desktop unified)
+  let jumpHeld = false;         // onko hyppyinputti tällä hetkellä pohjassa
+  let jumpHeldMs = 0;           // kuinka kauan on pidetty tässä hypyssä
+  let jumpPressedThisFrame = false; // edge-trigger (hyppy alkaa)
 
   window.addEventListener("keydown", (e) => {
     if (e.code === "Space") e.preventDefault();
     keys.add(e.code);
     if (e.code === "KeyR") reset();
+    // Space down = press
+    if (e.code === "Space") {
+      if (!jumpHeld) jumpPressedThisFrame = true;
+      jumpHeld = true;
+    }
   });
-  window.addEventListener("keyup", (e) => keys.delete(e.code));
 
+  window.addEventListener("keyup", (e) => {
+    keys.delete(e.code);
+    if (e.code === "Space") jumpHeld = false;
+  });
+
+  // Mobiili: pointer down = press, pointer up/cancel = release
   canvas.addEventListener("pointerdown", (e) => {
     if (!MOBILE_TAP_ONLY) return;
     e.preventDefault();
@@ -123,12 +145,23 @@
       return;
     }
 
-    tapJumpQueued = true;
+    if (!jumpHeld) jumpPressedThisFrame = true;
+    jumpHeld = true;
   }, { passive: false });
 
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function rand(min, max) { return min + Math.random() * (max - min); }
+  canvas.addEventListener("pointerup", (e) => {
+    if (!MOBILE_TAP_ONLY) return;
+    e.preventDefault();
+    jumpHeld = false;
+  }, { passive: false });
 
+  canvas.addEventListener("pointercancel", (e) => {
+    if (!MOBILE_TAP_ONLY) return;
+    e.preventDefault();
+    jumpHeld = false;
+  }, { passive: false });
+
+  // ---------- Collision helpers ----------
   function rectsOverlap(a, b) {
     return (
       a.x < b.x + b.w &&
@@ -196,9 +229,9 @@
   let score = 0;
   let gameOver = false;
 
-  let worldSpeed = 3.2;       // px per BASE_DT_MS
-  let spawnPickupTimer = 0;   // ms
-  let obstacleDistLeft = 0;   // px
+  let worldSpeed = 3.2;        // px per BASE_DT_MS
+  let spawnPickupTimer = 0;    // ms
+  let obstacleDistLeft = 0;    // px
 
   function reset() {
     player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
@@ -219,7 +252,11 @@
     bgX = 0;
 
     obstacleDistLeft = pickNextObstacleDistance();
-    tapJumpQueued = false;
+
+    // reset jump input state
+    jumpHeld = false;
+    jumpHeldMs = 0;
+    jumpPressedThisFrame = false;
   }
 
   // ---------- Spawning ----------
@@ -248,9 +285,9 @@
     const type = Math.floor(Math.random() * obstacleImgs.length);
 
     const drawH =
-      type === 0 ? 55 :   // rock
-      type === 1 ? 60 :   // bag
-      95;                 // scooter
+      type === 0 ? 55 :
+      type === 1 ? 60 :
+      95;
 
     const img = obstacleImgs[type];
     const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.6;
@@ -282,17 +319,17 @@
     const m = dtMul(dt);
     const scroll = worldSpeed * m;
 
-    // Background scroll (same scroll as world)
+    // Background scroll
     if (bg._ready && bgDrawW > 0) {
       bgX -= scroll * BG_SPEED_FACTOR;
       bgX = bgX % bgDrawW;
       if (bgX > 0) bgX -= bgDrawW;
     }
 
-    // Speed ramps up slowly (time-based already)
+    // Speed ramps up slowly
     worldSpeed += 0.00020 * dt;
 
-    // Input and movement
+    // Movement
     if (MOBILE_TAP_ONLY) {
       player.vx = 0;
       player.x = MOBILE_PLAYER_X;
@@ -307,16 +344,23 @@
       player.x = clamp(player.x, 0, W - player.w);
     }
 
-    const jumpPressed = keys.has("Space") || (MOBILE_TAP_ONLY && tapJumpQueued);
-    if (jumpPressed && player.onGround) {
+    // Start jump (edge)
+    if (jumpPressedThisFrame && player.onGround) {
       player.vy = JUMP_VELOCITY;
       player.onGround = false;
+      jumpHeldMs = 0; // alkaa uusi hyppy
     }
-    tapJumpQueued = false;
+    jumpPressedThisFrame = false;
 
-    // Physics (frame-rate independent)
-    player.vy += GRAVITY * m;
+    // Variable jump: while holding and moving upward, reduce gravity for a short time
+    const holdingThisJump = jumpHeld && !player.onGround && player.vy < 0 && jumpHeldMs < JUMP_HOLD_MAX_MS;
+    const gravityScale = holdingThisJump ? JUMP_HOLD_GRAVITY_SCALE : 1.0;
+
+    // Physics
+    player.vy += GRAVITY * gravityScale * m;
     player.y += player.vy * m;
+
+    if (!player.onGround) jumpHeldMs += dt;
 
     // Ground collision
     const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
@@ -342,7 +386,7 @@
       spawnPickupTimer = 450 + Math.random() * 450;
     }
 
-    // Move world objects (same scroll as background)
+    // Move world objects
     for (const ob of obstacles) ob.x -= scroll;
     for (const p of pickups) p.x -= scroll;
 
@@ -371,7 +415,6 @@
 
   // ---------- Draw ----------
   function draw() {
-    // Background
     if (bg._ready && bgDrawW > 0) {
       const x0 = Math.floor(bgX);
       for (let x = x0; x < W; x += bgDrawW) ctx.drawImage(bg, x, 0, bgDrawW, H);
@@ -379,14 +422,12 @@
       ctx.clearRect(0, 0, W, H);
     }
 
-    // Pickups
     for (const p of pickups) {
       const img = rewardImgs[p.type];
       if (img && img._ready) ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
       else { ctx.fillStyle = "#ffd54a"; ctx.fillRect(p.x, p.y, p.w, p.h); }
     }
 
-    // Obstacles
     for (const ob of obstacles) {
       const img = obstacleImgs[ob.type];
       const drawX = Math.round(ob.x - ob.offX);
@@ -395,7 +436,6 @@
       else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
     }
 
-    // Player
     if (playerImg._ready) {
       const drawX = player.x + player.w / 2 - player.drawW / 2;
       const drawY = player.y + player.h - player.drawH;
@@ -413,7 +453,6 @@
       ctx.fillRect(player.x, player.y, player.w, player.h);
     }
 
-    // HUD
     ctx.fillStyle = "#cfcfcf";
     ctx.font = "16px system-ui, sans-serif";
     ctx.fillText("Score: " + Math.floor(score), 12, 24);
