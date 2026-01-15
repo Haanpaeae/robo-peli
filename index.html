@@ -34,6 +34,13 @@
   const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap to jump
   const MOBILE_PLAYER_X = 120;       // mihin kohtaan hahmo "ankkuroidaan" mobiilissa
 
+  // ---------- Timing normalization ----------
+  const BASE_DT_MS = 1000 / 60;       // 60 fps baseline
+  const MAX_DT_MULT = 2.0;            // clampaa piikit (välilehden vaihto ym.)
+  function dtMul(dtMs) {
+    return clamp(dtMs / BASE_DT_MS, 0, MAX_DT_MULT);
+  }
+
   // ---------- Assets ----------
   function loadImage(src) {
     const img = new Image();
@@ -107,7 +114,6 @@
   });
   window.addEventListener("keyup", (e) => keys.delete(e.code));
 
-  // Mobiili: tap canvas = hyppy, game overissa tap = restart
   canvas.addEventListener("pointerdown", (e) => {
     if (!MOBILE_TAP_ONLY) return;
     e.preventDefault();
@@ -190,10 +196,9 @@
   let score = 0;
   let gameOver = false;
 
-  let worldSpeed = 3.2;
-  let spawnPickupTimer = 0;
-
-  let obstacleDistLeft = 0;
+  let worldSpeed = 3.2;       // px per BASE_DT_MS
+  let spawnPickupTimer = 0;   // ms
+  let obstacleDistLeft = 0;   // px
 
   function reset() {
     player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
@@ -274,14 +279,17 @@
   function update(dt) {
     if (gameOver) return;
 
-    // Background scroll
+    const m = dtMul(dt);
+    const scroll = worldSpeed * m;
+
+    // Background scroll (same scroll as world)
     if (bg._ready && bgDrawW > 0) {
-      bgX -= worldSpeed * BG_SPEED_FACTOR;
-      if (bgX <= -bgDrawW) bgX += bgDrawW;
+      bgX -= scroll * BG_SPEED_FACTOR;
+      bgX = bgX % bgDrawW;
       if (bgX > 0) bgX -= bgDrawW;
     }
 
-    // Speed ramps up slowly
+    // Speed ramps up slowly (time-based already)
     worldSpeed += 0.00020 * dt;
 
     // Input and movement
@@ -294,7 +302,8 @@
       if (keys.has("ArrowRight")) dir += 1;
       player.vx = dir * MOVE_SPEED;
       if (dir !== 0) player.facing = dir;
-      player.x += player.vx;
+
+      player.x += player.vx * m;
       player.x = clamp(player.x, 0, W - player.w);
     }
 
@@ -305,9 +314,9 @@
     }
     tapJumpQueued = false;
 
-    // Physics
-    player.vy += GRAVITY;
-    player.y += player.vy;
+    // Physics (frame-rate independent)
+    player.vy += GRAVITY * m;
+    player.y += player.vy * m;
 
     // Ground collision
     const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
@@ -318,10 +327,12 @@
     }
 
     // Spawning: obstacles by distance
-    obstacleDistLeft -= worldSpeed;
-    if (obstacleDistLeft <= 0) {
+    obstacleDistLeft -= scroll;
+    let safety = 0;
+    while (obstacleDistLeft <= 0 && safety < 3) {
       spawnObstacle();
-      obstacleDistLeft = pickNextObstacleDistance();
+      obstacleDistLeft += pickNextObstacleDistance();
+      safety++;
     }
 
     // Spawning: pickups by timer
@@ -331,9 +342,9 @@
       spawnPickupTimer = 450 + Math.random() * 450;
     }
 
-    // Move world objects
-    for (const ob of obstacles) ob.x -= worldSpeed;
-    for (const p of pickups) p.x -= worldSpeed;
+    // Move world objects (same scroll as background)
+    for (const ob of obstacles) ob.x -= scroll;
+    for (const p of pickups) p.x -= scroll;
 
     // Cleanup off-screen
     obstacles = obstacles.filter(ob => ob.x + ob.w > -120);
