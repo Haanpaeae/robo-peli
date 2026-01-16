@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Runner</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #111; }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #1b1b1b;
+      touch-action: none; /* est‰‰ scrollin ja pinch-zoomin canvasin p‰‰ll‰ */
+      width: min(100vw, 900px);
+      height: auto;
+    }
+    .hint { color:#bbb; font: 14px/1.4 system-ui, sans-serif; text-align:center; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div class="hint">Desktop: nuolin‰pp‰imet liiku, v‰lilyˆnti hyppy, R restart. Mobiili: napauta ja pid‰ pohjassa pidemp‰‰ hyppy‰ varten. Game Overissa napauta restart.</div>
+  <canvas id="game" width="900" height="450"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // ---------- Device mode ----------
+  const IS_MOBILE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap/hold to jump
+  const MOBILE_PLAYER_X = 120;
+
+  // ---------- Assets ----------
+  function loadImage(src) {
+    const img = new Image();
+    img.src = src;
+    img._ready = false;
+    img.onload = () => img._ready = true;
+    img.onerror = () => console.error("Image failed to load:", src);
+    return img;
+  }
+
+  const bg = loadImage("bg.png");
+  const playerImg = loadImage("player.png");
+
+  const rewardSources = [
+    "reward_trip_strawberry.png",
+    "reward_trip_raspberry.png",
+    "reward_trip_sugarfree_circus.png",
+    "reward_trip_watermelon.png",
+    "reward_trip_orange_cola.png",
+  ];
+  const rewardImgs = rewardSources.map(loadImage);
+
+  const obstacleSources = [
+    "obstacle_rock.png",
+    "obstacle_bag.png",
+    "obstacle_scooter.png",
+  ];
+  const obstacleImgs = obstacleSources.map(loadImage);
+
+  // Background tiling state
+  let bgX = 0;
+  let bgScale = 1;
+  let bgDrawW = 0;
+  const BG_SPEED_FACTOR = 0.35;
+
+  bg.onload = () => {
+    bg._ready = true;
+    bgScale = H / bg.naturalHeight;
+    bgDrawW = Math.round(bg.naturalWidth * bgScale);
+  };
+
+  // ---------- Game constants ----------
+  const GROUND_Y = 375;
+
+  // Make physics time-based (px/s, px/s^2) so desktop and mobile feel the same
+  const GRAVITY = 2200;          // px/s^2
+  const MOVE_SPEED = 300;        // px/s
+  const JUMP_VELOCITY = -930;    // px/s
+
+  const PLAYER_Y_LIFT = 0;
+
+  // Variable jump tuning (press and hold)
+  // Bigger jump starts only after threshold, so it requires a longer press.
+  const JUMP_HOLD_THRESHOLD_MS = 140;  // how long you must hold before "big jump" starts
+  const JUMP_HOLD_MAX_MS = 420;        // max hold time that affects the jump
+  const JUMP_HOLD_GRAVITY_FACTOR = 0.55; // at full hold, gravity is multiplied by this during ascent (lower = floatier)
+
+  // --- No-overlap spawning (sprites, not hitboxes) ---
+  const OBSTACLE_GAP_X = 400;
+  const PICKUP_GAP_X = 30;
+  const MIX_GAP_X = 40;
+  const SPAWN_GAP_Y = 10;
+
+  // --- Obstacle spawn spacing by distance (pixels) ---
+  const OBSTACLE_DIST_MIN = 320;
+  const OBSTACLE_DIST_MAX = 950;
+  const OBSTACLE_LONG_CHANCE = 0.20;
+  const OBSTACLE_LONG_EXTRA_MIN = 450;
+  const OBSTACLE_LONG_EXTRA_MAX = 1100;
+
+  // World speed (px/s)
+  const WORLD_SPEED_START = 190;   // ~3.2 px/frame at 60fps
+  const WORLD_ACCEL = 12;          // px/s^2 (how fast it ramps up)
+  const WORLD_SPEED_MAX = 520;
+
+  // ---------- Helpers ----------
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function rectsOverlap(a, b) {
+    return (
+      a.x < b.x + b.w &&
+      a.x + a.w > b.x &&
+      a.y < b.y + b.h &&
+      a.y + a.h > b.y
+    );
+  }
+
+  function rectsOverlapPad(a, b, padX, padY) {
+    return (
+      (a.x - padX) < (b.x + b.w + padX) &&
+      (a.x + a.w + padX) > (b.x - padX) &&
+      (a.y - padY) < (b.y + b.h + padY) &&
+      (a.y + a.h + padY) > (b.y - padY)
+    );
+  }
+
+  function obstacleSpriteRect(ob) {
+    return { x: ob.x - ob.offX, y: ob.y - ob.offY, w: ob.drawW, h: ob.drawH };
+  }
+  function collectObstacleSpriteRects() { return obstacles.map(obstacleSpriteRect); }
+  function collectPickupSpriteRects() { return pickups.map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h })); }
+
+  function resolveSpawnX(candidateRect, existingRects, padX, padY) {
+    let safety = 0;
+    let moved = true;
+
+    while (moved && safety < 60) {
+      moved = false;
+      safety++;
+
+      for (const r of existingRects) {
+        if (rectsOverlapPad(candidateRect, r, padX, padY)) {
+          candidateRect.x = r.x + r.w + padX;
+          moved = true;
+        }
+      }
+    }
+  }
+
+  function pickNextObstacleDistance() {
+    let d = rand(OBSTACLE_DIST_MIN, OBSTACLE_DIST_MAX);
+    if (Math.random() < OBSTACLE_LONG_CHANCE) d += rand(OBSTACLE_LONG_EXTRA_MIN, OBSTACLE_LONG_EXTRA_MAX);
+    return d;
+  }
+
+  // ---------- Player ----------
+  const player = {
+    x: MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100,
+    y: GROUND_Y - 45 - PLAYER_Y_LIFT,
+    w: 70,
+    h: 45,
+    drawW: 95,
+    drawH: 160,
+    vx: 0,
+    vy: 0,
+    onGround: true,
+    facing: 1,
+  };
+
+  // ---------- World state ----------
+  let obstacles = [];
+  let pickups = [];
+  let score = 0;
+  let gameOver = false;
+
+  let worldSpeed = WORLD_SPEED_START;
+  let spawnPickupTimer = 0;
+  let obstacleDistLeft = 0;
+
+  // ---------- Input state (supports hold) ----------
+  const keys = new Set();
+  let jumpHeld = false;
+  let jumpPressedThisFrame = false;
+  let jumpHoldStartMs = 0;
+  let jumpStartedMs = 0; // when the current jump began
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") e.preventDefault();
+    keys.add(e.code);
+
+    if (e.code === "KeyR") reset();
+
+    if (e.code === "Space" && !MOBILE_TAP_ONLY) {
+      // only start jump input on ground, avoids mid-air re-press effects
+      if (!jumpHeld && !gameOver && player.onGround) {
+        jumpPressedThisFrame = true;
+        jumpHeld = true;
+        jumpHoldStartMs = performance.now();
+      }
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    keys.delete(e.code);
+    if (e.code === "Space" && !MOBILE_TAP_ONLY) {
+      jumpHeld = false;
+    }
+  });
+
+  // Mobile: pointerdown starts jump and holding affects jump, pointerup ends hold
+  if (MOBILE_TAP_ONLY) {
+    canvas.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+
+      if (gameOver) {
+        reset();
+        return;
+      }
+
+      if (!player.onGround) return; // no mid-air press effects
+
+      jumpPressedThisFrame = true;
+      jumpHeld = true;
+      jumpHoldStartMs = performance.now();
+    }, { passive: false });
+
+    const endHold = () => { jumpHeld = false; };
+    window.addEventListener("pointerup", endHold, { passive: true });
+    window.addEventListener("pointercancel", endHold, { passive: true });
+    window.addEventListener("pointerleave", endHold, { passive: true });
+  }
+
+  function reset() {
+    player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
+    player.y = GROUND_Y - player.h - PLAYER_Y_LIFT;
+    player.vx = 0;
+    player.vy = 0;
+    player.onGround = true;
+    player.facing = 1;
+
+    obstacles = [];
+    pickups = [];
+    score = 0;
+    gameOver = false;
+
+    worldSpeed = WORLD_SPEED_START;
+    spawnPickupTimer = 0;
+
+    bgX = 0;
+
+    obstacleDistLeft = pickNextObstacleDistance();
+
+    jumpHeld = false;
+    jumpPressedThisFrame = false;
+    jumpHoldStartMs = 0;
+    jumpStartedMs = 0;
+  }
+
+  // ---------- Spawning ----------
+  function spawnPickup() {
+    const type = Math.floor(Math.random() * rewardImgs.length);
+
+    const drawH = 72;
+    const img = rewardImgs[type];
+    const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 0.43;
+    const drawW = Math.max(28, Math.round(drawH * ratio));
+
+    const inAir = Math.random() < 0.65;
+    const yAir = (GROUND_Y - player.h - PLAYER_Y_LIFT - 110 - Math.random() * 80);
+    const yGround = (GROUND_Y - drawH - 6);
+    const y = clamp(inAir ? yAir : yGround, 30, GROUND_Y - drawH - 6);
+
+    const cand = { x: W + 20, y, w: drawW, h: drawH };
+
+    resolveSpawnX(cand, collectPickupSpriteRects(), PICKUP_GAP_X, SPAWN_GAP_Y);
+    resolveSpawnX(cand, collectObstacleSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+
+    pickups.push({ type, x: cand.x, y: cand.y, w: cand.w, h: cand.h, collected: false });
+  }
+
+  function spawnObstacle() {
+    const type = Math.floor(Math.random() * obstacleImgs.length);
+
+    // Sizes: bag about same height as rock, scooter higher
+    const drawH =
+      type === 0 ? 55 :   // rock
+      type === 1 ? 55 :   // bag (same as rock)
+      105;                // scooter (higher)
+
+    const img = obstacleImgs[type];
+    const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.6;
+    const drawW = Math.max(55, Math.round(drawH * ratio));
+
+    const boxW = Math.round(drawW * (type === 2 ? 0.70 : 0.65));
+    const boxH = Math.round(drawH * (type === 1 ? 0.70 : 0.60));
+
+    const offX = Math.round((drawW - boxW) / 2);
+    const offY = Math.round(drawH - boxH);
+
+    const candSprite = { x: W + 20, y: GROUND_Y - drawH, w: drawW, h: drawH };
+
+    resolveSpawnX(candSprite, collectObstacleSpriteRects(), OBSTACLE_GAP_X, SPAWN_GAP_Y);
+    resolveSpawnX(candSprite, collectPickupSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+
+    const x = candSprite.x + offX;
+    const y = candSprite.y + offY;
+
+    obstacles.push({ type, x, y, w: boxW, h: boxH, drawW, drawH, offX, offY });
+  }
+
+  // ---------- Update ----------
+  function update(dtMs) {
+    if (gameOver) return;
+
+    const dt = Math.min(0.05, dtMs / 1000); // clamp to avoid huge physics steps on tab switch
+
+    // Background scroll (time-based)
+    if (bg._ready && bgDrawW > 0) {
+      bgX -= worldSpeed * BG_SPEED_FACTOR * dt;
+      bgX = bgX % bgDrawW;
+      if (bgX > 0) bgX -= bgDrawW;
+    }
+
+    // Speed ramps up slowly (time-based)
+    worldSpeed = Math.min(WORLD_SPEED_MAX, worldSpeed + WORLD_ACCEL * dt);
+
+    // Movement input
+    if (MOBILE_TAP_ONLY) {
+      player.vx = 0;
+      player.x = MOBILE_PLAYER_X;
+    } else {
+      let dir = 0;
+      if (keys.has("ArrowLeft")) dir -= 1;
+      if (keys.has("ArrowRight")) dir += 1;
+      player.vx = dir * MOVE_SPEED;
+      if (dir !== 0) player.facing = dir;
+
+      player.x += player.vx * dt;
+      player.x = clamp(player.x, 0, W - player.w);
+    }
+
+    // Jump start
+    if (jumpPressedThisFrame && player.onGround) {
+      player.vy = JUMP_VELOCITY;
+      player.onGround = false;
+      jumpStartedMs = performance.now();
+    }
+    jumpPressedThisFrame = false;
+
+    // Variable jump: while holding, reduce gravity during ascent after a threshold
+    let g = GRAVITY;
+    if (!player.onGround && jumpHeld && player.vy < 0) {
+      const now = performance.now();
+      const heldMs = now - jumpHoldStartMs;
+      const jumpAgeMs = now - jumpStartedMs;
+
+      // Only allow hold effect if this hold belongs to the current jump (avoid edge weirdness)
+      if (jumpAgeMs >= 0 && heldMs >= 0) {
+        if (heldMs > JUMP_HOLD_THRESHOLD_MS) {
+          const t = clamp((heldMs - JUMP_HOLD_THRESHOLD_MS) / (JUMP_HOLD_MAX_MS - JUMP_HOLD_THRESHOLD_MS), 0, 1);
+          const gravityFactor = lerp(1.0, JUMP_HOLD_GRAVITY_FACTOR, t);
+          g = GRAVITY * gravityFactor;
+        }
+      }
+    }
+
+    // Physics
+    player.vy += g * dt;
+    player.y += player.vy * dt;
+
+    // Ground collision
+    const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
+    if (player.y + player.h >= effectiveGround) {
+      player.y = effectiveGround - player.h;
+      player.vy = 0;
+      player.onGround = true;
+      jumpHeld = false; // landing ends hold effect
+    }
+
+    // Spawning: obstacles by distance (time-based scroll distance)
+    obstacleDistLeft -= worldSpeed * dt;
+    if (obstacleDistLeft <= 0) {
+      spawnObstacle();
+      obstacleDistLeft = pickNextObstacleDistance();
+    }
+
+    // Spawning: pickups by timer (still ms)
+    spawnPickupTimer -= dtMs;
+    if (spawnPickupTimer <= 0) {
+      spawnPickup();
+      spawnPickupTimer = 450 + Math.random() * 450;
+    }
+
+    // Move world objects (time-based)
+    for (const ob of obstacles) ob.x -= worldSpeed * dt;
+    for (const p of pickups) p.x -= worldSpeed * dt;
+
+    // Cleanup off-screen
+    obstacles = obstacles.filter(ob => ob.x + ob.w > -120);
+    pickups = pickups.filter(p => p.x + p.w > -120 && !p.collected);
+
+    // Collisions: obstacles
+    for (const ob of obstacles) {
+      if (rectsOverlap(player, ob)) {
+        gameOver = true;
+        return;
+      }
+    }
+
+    // Collisions: pickups
+    for (const p of pickups) {
+      if (!p.collected && rectsOverlap(player, p)) {
+        p.collected = true;
+        score += 100;
+      }
+    }
+
+    // Score trickle (kept as before, ms-based)
+    score += 0.01 * dtMs;
+  }
+
+  // ---------- Draw ----------
+  function draw() {
+    // Background
+    if (bg._ready && bgDrawW > 0) {
+      const x0 = Math.floor(bgX);
+      for (let x = x0; x < W; x += bgDrawW) ctx.drawImage(bg, x, 0, bgDrawW, H);
+    } else {
+      ctx.clearRect(0, 0, W, H);
+    }
+
+    // Pickups
+    for (const p of pickups) {
+      const img = rewardImgs[p.type];
+      if (img && img._ready) ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
+      else { ctx.fillStyle = "#ffd54a"; ctx.fillRect(p.x, p.y, p.w, p.h); }
+    }
+
+    // Obstacles
+    for (const ob of obstacles) {
+      const img = obstacleImgs[ob.type];
+      const drawX = Math.round(ob.x - ob.offX);
+      const drawY = Math.round(ob.y - ob.offY);
+      if (img && img._ready) ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
+      else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
+    }
+
+    // Player
+    if (playerImg._ready) {
+      const drawX = player.x + player.w / 2 - player.drawW / 2;
+      const drawY = player.y + player.h - player.drawH;
+
+      ctx.save();
+      if (!MOBILE_TAP_ONLY && player.facing === -1) {
+        ctx.translate(drawX + player.drawW / 2, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-(drawX + player.drawW / 2), 0);
+      }
+      ctx.drawImage(playerImg, Math.round(drawX), Math.round(drawY), player.drawW, player.drawH);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "#e6e6e6";
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+    }
+
+    // HUD
+    ctx.fillStyle = "#cfcfcf";
+    ctx.font = "16px system-ui, sans-serif";
+    ctx.fillText("Score: " + Math.floor(score), 12, 24);
+    ctx.fillText("Speed: " + Math.round(worldSpeed), 12, 44);
+
+    if (gameOver) {
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "28px system-ui, sans-serif";
+      ctx.fillText("Game Over", W/2 - 80, H/2 - 10);
+
+      ctx.font = "16px system-ui, sans-serif";
+      ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W/2 - 135, H/2 + 20);
+    }
+  }
+
+  // ---------- Loop ----------
+  let last = performance.now();
+  function loop(now) {
+    const dt = now - last;
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
