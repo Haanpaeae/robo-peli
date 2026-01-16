@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Simple Runner</title>
   <style>
-    html, body { height: 100%; margin: 0; background: #111; }
+    html, body { height: 100%; margin: 0; background: #111; overflow: hidden; }
     canvas {
       display: block;
       margin: 0 auto;
@@ -15,16 +15,61 @@
       height: auto;
     }
     .hint { color:#bbb; font: 14px/1.4 system-ui, sans-serif; text-align:center; margin: 10px 0; }
+    
+    /* Orientation message overlay */
+    .orientation-message {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .orientation-message.show {
+      display: flex;
+    }
+    .orientation-message h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .orientation-message p {
+      font-size: 18px;
+      color: #bbb;
+    }
+    .orientation-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      animation: rotate 2s ease-in-out infinite;
+    }
+    @keyframes rotate {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(90deg); }
+    }
   </style>
 </head>
 <body>
   <div class="hint">Desktop: nuolinäppäimet liiku, välilyönti hyppy, R restart. Mobiili: napauta ja pidä pohjassa pidempää hyppyä varten. Game Overissa napauta restart.</div>
+  <div id="orientation-message" class="orientation-message">
+    <div class="orientation-icon">??</div>
+    <h2>K??nn? laite vaakatasoon</h2>
+    <p>Peli vaatii vaaka-asennon parhaaseen pelikokemukseen</p>
+  </div>
   <canvas id="game" width="900" height="450"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
+  const orientationMessage = document.getElementById("orientation-message");
 
   const W = canvas.width;
   const H = canvas.height;
@@ -33,6 +78,66 @@
   const IS_MOBILE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap/hold to jump
   const MOBILE_PLAYER_X = 120;
+
+  // ---------- Orientation detection ----------
+  function isLandscape() {
+    // Use Screen Orientation API if available, fallback to window dimensions
+    if (screen.orientation) {
+      return screen.orientation.angle === 90 || screen.orientation.angle === -90 || 
+             screen.orientation.type.includes('landscape');
+    }
+    // Fallback for older browsers
+    return window.innerWidth > window.innerHeight;
+  }
+
+  function checkOrientation() {
+    if (IS_MOBILE) {
+      if (isLandscape()) {
+        orientationMessage.classList.remove('show');
+        scaleCanvasForMobile();
+      } else {
+        orientationMessage.classList.add('show');
+      }
+    }
+  }
+
+  function scaleCanvasForMobile() {
+    if (!IS_MOBILE) return;
+    
+    const maxWidth = window.innerWidth;
+    const maxHeight = window.innerHeight;
+    const aspectRatio = W / H;
+    
+    let newWidth = maxWidth;
+    let newHeight = newWidth / aspectRatio;
+    
+    // If height doesn't fit, scale based on height instead
+    if (newHeight > maxHeight) {
+      newHeight = maxHeight;
+      newWidth = newHeight * aspectRatio;
+    }
+    
+    // Apply scaling
+    canvas.style.width = newWidth + 'px';
+    canvas.style.height = newHeight + 'px';
+  }
+
+  // Listen for orientation changes
+  if (IS_MOBILE) {
+    // Screen Orientation API
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', checkOrientation);
+    }
+    // Fallback: window resize and orientationchange
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', () => {
+      // Small delay to let orientation settle
+      setTimeout(checkOrientation, 100);
+    });
+    
+    // Initial check
+    checkOrientation();
+  }
 
   // ---------- Assets ----------
   function loadImage(src) {
@@ -318,6 +423,9 @@
 
   // ---------- Update ----------
   function update(dtMs) {
+    // Don't update game if orientation message is showing
+    if (IS_MOBILE && !isLandscape()) return;
+    
     if (gameOver) return;
 
     const dt = Math.min(0.05, dtMs / 1000); // clamp to avoid huge physics steps on tab switch
@@ -429,6 +537,9 @@
 
   // ---------- Draw ----------
   function draw() {
+    // Don't draw game if orientation message is showing
+    if (IS_MOBILE && !isLandscape()) return;
+    
     // Background
     if (bg._ready && bgDrawW > 0) {
       const x0 = Math.floor(bgX);
