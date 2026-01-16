@@ -59,10 +59,81 @@
       0%, 100% { transform: rotate(0deg); }
       50% { transform: rotate(90deg); }
     }
+    
+    /* Difficulty selection menu */
+    .difficulty-menu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+    .difficulty-menu.hidden {
+      display: none;
+    }
+    .difficulty-menu h1 {
+      font-size: 32px;
+      margin-bottom: 40px;
+      color: #fff;
+    }
+    .difficulty-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 280px;
+    }
+    .difficulty-button {
+      padding: 20px 40px;
+      font-size: 20px;
+      background: #333;
+      color: #fff;
+      border: 2px solid #555;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: system-ui, sans-serif;
+    }
+    .difficulty-button:hover {
+      background: #444;
+      border-color: #777;
+      transform: scale(1.05);
+    }
+    .difficulty-button:active {
+      transform: scale(0.98);
+    }
+    .difficulty-button.easy {
+      border-color: #4caf50;
+    }
+    .difficulty-button.easy:hover {
+      background: #4caf50;
+      border-color: #66bb6a;
+    }
+    .difficulty-button.normal {
+      border-color: #ff9800;
+    }
+    .difficulty-button.normal:hover {
+      background: #ff9800;
+      border-color: #ffb74d;
+    }
   </style>
 </head>
 <body>
   <div class="hint" id="hint-text">Desktop: nuolinäppäimet liiku, välilyönti hyppy, R restart. Mobiili: napauta ja pidä pohjassa pidempää hyppyä varten. Game Overissa napauta restart.</div>
+  <div id="difficulty-menu" class="difficulty-menu">
+    <h1>Valitse vaikeustaso</h1>
+    <div class="difficulty-buttons">
+      <button class="difficulty-button easy" data-difficulty="easy">Helppo</button>
+      <button class="difficulty-button normal" data-difficulty="normal">Normaali</button>
+    </div>
+  </div>
   <div id="orientation-message" class="orientation-message">
     <div class="orientation-icon">??</div>
     <h2>K??nn? laite vaakatasoon</h2>
@@ -76,6 +147,7 @@
   const ctx = canvas.getContext("2d");
   const orientationMessage = document.getElementById("orientation-message");
   const hintText = document.getElementById("hint-text");
+  const difficultyMenu = document.getElementById("difficulty-menu");
 
   const W = canvas.width;
   const H = canvas.height;
@@ -292,6 +364,8 @@
   let pickups = [];
   let score = 0;
   let gameOver = false;
+  let difficulty = null; // 'easy' or 'normal'
+  let gameStarted = false;
 
   let worldSpeed = WORLD_SPEED_START;
   let spawnPickupTimer = 0;
@@ -308,7 +382,14 @@
     if (e.code === "Space") e.preventDefault();
     keys.add(e.code);
 
-    if (e.code === "KeyR") reset();
+    if (e.code === "KeyR") {
+      if (gameOver) {
+        // Return to difficulty menu on restart
+        gameStarted = false;
+        difficulty = null;
+        difficultyMenu.classList.remove('hidden');
+      }
+    }
 
     if (e.code === "Space" && !MOBILE_TAP_ONLY) {
       // only start jump input on ground, avoids mid-air re-press effects
@@ -333,7 +414,10 @@
       e.preventDefault();
 
       if (gameOver) {
-        reset();
+        // Return to difficulty menu on restart
+        gameStarted = false;
+        difficulty = null;
+        difficultyMenu.classList.remove('hidden');
         return;
       }
 
@@ -368,13 +452,32 @@
 
     bgX = 0;
 
-    obstacleDistLeft = pickNextObstacleDistance();
+    if (difficulty === 'normal') {
+      obstacleDistLeft = pickNextObstacleDistance();
+    }
 
     jumpHeld = false;
     jumpPressedThisFrame = false;
     jumpHoldStartMs = 0;
     jumpStartedMs = 0;
   }
+
+  // ---------- Difficulty selection ----------
+  function startGame(selectedDifficulty) {
+    difficulty = selectedDifficulty;
+    gameStarted = true;
+    difficultyMenu.classList.add('hidden');
+    reset();
+  }
+
+  // Setup difficulty buttons
+  const difficultyButtons = document.querySelectorAll('.difficulty-button');
+  difficultyButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const selectedDifficulty = button.getAttribute('data-difficulty');
+      startGame(selectedDifficulty);
+    });
+  });
 
   // ---------- Spawning ----------
   function spawnPickup() {
@@ -430,8 +533,9 @@
 
   // ---------- Update ----------
   function update(dtMs) {
-    // Don't update game if orientation message is showing
+    // Don't update game if orientation message is showing or game hasn't started
     if (IS_MOBILE && !isLandscape()) return;
+    if (!gameStarted || difficulty === null) return;
     
     if (gameOver) return;
 
@@ -500,11 +604,13 @@
       jumpHeld = false; // landing ends hold effect
     }
 
-    // Spawning: obstacles by distance (time-based scroll distance)
-    obstacleDistLeft -= worldSpeed * dt;
-    if (obstacleDistLeft <= 0) {
-      spawnObstacle();
-      obstacleDistLeft = pickNextObstacleDistance();
+    // Spawning: obstacles by distance (time-based scroll distance) - only in normal difficulty
+    if (difficulty === 'normal') {
+      obstacleDistLeft -= worldSpeed * dt;
+      if (obstacleDistLeft <= 0) {
+        spawnObstacle();
+        obstacleDistLeft = pickNextObstacleDistance();
+      }
     }
 
     // Spawning: pickups by timer (still ms)
@@ -515,18 +621,22 @@
     }
 
     // Move world objects (time-based)
-    for (const ob of obstacles) ob.x -= worldSpeed * dt;
+    if (difficulty === 'normal') {
+      for (const ob of obstacles) ob.x -= worldSpeed * dt;
+    }
     for (const p of pickups) p.x -= worldSpeed * dt;
 
     // Cleanup off-screen
     obstacles = obstacles.filter(ob => ob.x + ob.w > -120);
     pickups = pickups.filter(p => p.x + p.w > -120 && !p.collected);
 
-    // Collisions: obstacles
-    for (const ob of obstacles) {
-      if (rectsOverlap(player, ob)) {
-        gameOver = true;
-        return;
+    // Collisions: obstacles - only in normal difficulty
+    if (difficulty === 'normal') {
+      for (const ob of obstacles) {
+        if (rectsOverlap(player, ob)) {
+          gameOver = true;
+          return;
+        }
       }
     }
 
@@ -544,8 +654,9 @@
 
   // ---------- Draw ----------
   function draw() {
-    // Don't draw game if orientation message is showing
+    // Don't draw game if orientation message is showing or game hasn't started
     if (IS_MOBILE && !isLandscape()) return;
+    if (!gameStarted || difficulty === null) return;
     
     // Background
     if (bg._ready && bgDrawW > 0) {
@@ -562,13 +673,15 @@
       else { ctx.fillStyle = "#ffd54a"; ctx.fillRect(p.x, p.y, p.w, p.h); }
     }
 
-    // Obstacles
-    for (const ob of obstacles) {
-      const img = obstacleImgs[ob.type];
-      const drawX = Math.round(ob.x - ob.offX);
-      const drawY = Math.round(ob.y - ob.offY);
-      if (img && img._ready) ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
-      else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
+    // Obstacles - only draw in normal difficulty
+    if (difficulty === 'normal') {
+      for (const ob of obstacles) {
+        const img = obstacleImgs[ob.type];
+        const drawX = Math.round(ob.x - ob.offX);
+        const drawY = Math.round(ob.y - ob.offY);
+        if (img && img._ready) ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
+        else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
+      }
     }
 
     // Player
@@ -618,7 +731,7 @@
     requestAnimationFrame(loop);
   }
 
-  reset();
+  // Don't start game automatically - wait for difficulty selection
   requestAnimationFrame(loop);
 })();
 </script>
