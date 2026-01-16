@@ -15,6 +15,11 @@
       height: auto;
     }
     .hint { color:#bbb; font: 14px/1.4 system-ui, sans-serif; text-align:center; margin: 10px 0; }
+    @media (pointer: coarse) {
+      .hint.hide-on-mobile-landscape {
+        display: none;
+      }
+    }
     
     /* Orientation message overlay */
     .orientation-message {
@@ -57,7 +62,7 @@
   </style>
 </head>
 <body>
-  <div class="hint">Desktop: nuolinäppäimet liiku, välilyönti hyppy, R restart. Mobiili: napauta ja pidä pohjassa pidempää hyppyä varten. Game Overissa napauta restart.</div>
+  <div class="hint" id="hint-text">Desktop: nuolin?pp?imet liiku, v?lily?nti hyppy, R restart. Mobiili: napauta ja pid? pohjassa pidemp?? hyppy? varten. Game Overissa napauta restart.</div>
   <div id="orientation-message" class="orientation-message">
     <div class="orientation-icon">??</div>
     <h2>K??nn? laite vaakatasoon</h2>
@@ -70,6 +75,7 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
   const orientationMessage = document.getElementById("orientation-message");
+  const hintText = document.getElementById("hint-text");
 
   const W = canvas.width;
   const H = canvas.height;
@@ -94,9 +100,11 @@
     if (IS_MOBILE) {
       if (isLandscape()) {
         orientationMessage.classList.remove('show');
+        hintText.classList.add('hide-on-mobile-landscape');
         scaleCanvasForMobile();
       } else {
         orientationMessage.classList.add('show');
+        hintText.classList.remove('hide-on-mobile-landscape');
       }
     }
   }
@@ -108,16 +116,15 @@
     const maxHeight = window.innerHeight;
     const aspectRatio = W / H;
     
-    let newWidth = maxWidth;
-    let newHeight = newWidth / aspectRatio;
-    
-    // If height doesn't fit, scale based on height instead
-    if (newHeight > maxHeight) {
-      newHeight = maxHeight;
-      newWidth = newHeight * aspectRatio;
-    }
+    // Calculate scale based on both width and height, use the smaller one
+    const scaleByWidth = maxWidth / W;
+    const scaleByHeight = maxHeight / H;
+    const scale = Math.min(scaleByWidth, scaleByHeight);
     
     // Apply scaling
+    const newWidth = W * scale;
+    const newHeight = H * scale;
+    
     canvas.style.width = newWidth + 'px';
     canvas.style.height = newHeight + 'px';
   }
