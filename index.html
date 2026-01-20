@@ -370,9 +370,11 @@
       color: #fff;
       font-family: system-ui, sans-serif;
     }
+
     .pause-overlay.show {
       display: flex;
     }
+
     .pause-box {
       background: #222;
       padding: 30px;
@@ -381,10 +383,12 @@
       min-width: 260px;
       max-width: 90%;
     }
+
     .pause-box h2 {
       margin-bottom: 20px;
       font-size: 26px;
     }
+
     .pause-box button {
       padding: 12px 24px;
       margin: 10px 5px;
@@ -397,12 +401,15 @@
       font-family: system-ui, sans-serif;
       transition: background 0.2s;
     }
+
     .pause-box button.end {
       background: #e53935;
     }
+
     .pause-box button:hover {
       background: #45a049;
     }
+
     .pause-box button.end:hover {
       background: #ef5350;
     }
@@ -451,6 +458,14 @@
     </div>
   </div>
   <canvas id="game" width="900" height="450"></canvas>
+
+  <!-- Supabase client for server-side high score storage -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://omtqhuijysrzvpsjqnxm.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_h5ePtvFrJ8IzUS3er-HICg_HjSGUAeK";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
 
   <script>
     (() => {
@@ -810,6 +825,25 @@
         return score > scores[0].score;
       }
 
+      // -------- Server-side high score helpers (Supabase) --------
+      async function saveHighScoreToServer(mode, name, score) {
+        try {
+          const { error } = await supabase
+            .from('highscores')
+            .insert({
+              mode,
+              name,
+              score,
+            });
+
+          if (error) {
+            console.error('Failed to save highscore to Supabase', error);
+          }
+        } catch (err) {
+          console.error('Unexpected error saving highscore to Supabase', err);
+        }
+      }
+
       function showScoreInput() {
         const finalScore = Math.floor(score);
         document.getElementById('final-score-display').textContent = finalScore;
@@ -824,7 +858,13 @@
         const nameInput = document.getElementById('player-name-input');
         const name = nameInput.value.trim() || 'Anonyymi';
         const modeForSave = difficulty === 'easy' ? 'easy' : 'normal';
-        saveHighScore(name, Math.floor(score), modeForSave);
+        const finalScore = Math.floor(score);
+
+        // Local high score list (existing behaviour)
+        saveHighScore(name, finalScore, modeForSave);
+
+        // Mirror to Supabase (server-side storage)
+        saveHighScoreToServer(modeForSave, name, finalScore);
         document.getElementById('score-input-overlay').classList.remove('show');
         // Return to difficulty menu
         gameStarted = false;
