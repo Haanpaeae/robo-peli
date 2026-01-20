@@ -162,6 +162,29 @@
       border-color: #ffb74d;
     }
 
+    /* Mobile landscape tweaks: fit all menu content without scrolling */
+    @media (pointer: coarse) and (orientation: landscape) {
+      .difficulty-menu h1 {
+        font-size: 26px;
+        margin-bottom: 20px;
+      }
+
+      .difficulty-menu h2 {
+        font-size: 20px;
+        margin-bottom: 16px;
+      }
+
+      .difficulty-buttons {
+        width: 240px;
+        gap: 14px;
+      }
+
+      .difficulty-button {
+        padding: 14px 24px;
+        font-size: 18px;
+      }
+    }
+
     /* Score input overlay */
     .score-input-overlay {
       position: fixed;
