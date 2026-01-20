@@ -844,6 +844,26 @@
         }
       }
 
+      async function fetchHighScoresFromServer(mode) {
+        try {
+          const { data, error } = await supabase
+            .from('highscores')
+            .select('name, score, created_at')
+            .eq('mode', mode)
+            .order('score', { ascending: false })
+            .limit(10);
+
+          if (error) {
+            console.error('Failed to load highscores from Supabase', error);
+            return [];
+          }
+          return data || [];
+        } catch (err) {
+          console.error('Unexpected error loading highscores from Supabase', err);
+          return [];
+        }
+      }
+
       function showScoreInput() {
         const finalScore = Math.floor(score);
         document.getElementById('final-score-display').textContent = finalScore;
@@ -884,7 +904,7 @@
         difficultyMenu.classList.remove('hidden');
       };
 
-      window.showHighScores = function () {
+      window.showHighScores = async function () {
         const listElement = document.getElementById('high-scores-list');
         listElement.innerHTML = '';
 
@@ -893,8 +913,9 @@
           { key: 'normal', title: 'Normaali' },
         ];
 
-        modes.forEach((mode, modeIndex) => {
-          const scores = getHighScores(mode.key);
+        for (let modeIndex = 0; modeIndex < modes.length; modeIndex++) {
+          const mode = modes[modeIndex];
+          const scores = await fetchHighScoresFromServer(mode.key);
 
           const headerItem = document.createElement('li');
           headerItem.style.padding = '8px 0';
@@ -904,7 +925,7 @@
           headerItem.textContent = mode.title + ' tila';
           listElement.appendChild(headerItem);
 
-          if (scores.length === 0) {
+          if (!scores || scores.length === 0) {
             const emptyItem = document.createElement('li');
             emptyItem.textContent = 'Ei vielä tuloksia';
             emptyItem.style.padding = '6px 0 12px 0';
@@ -923,17 +944,17 @@
               name.className = 'high-score-name';
               name.textContent = item.name;
 
-              const score = document.createElement('span');
-              score.className = 'high-score-score';
-              score.textContent = Math.floor(item.score);
+              const scoreSpan = document.createElement('span');
+              scoreSpan.className = 'high-score-score';
+              scoreSpan.textContent = Math.floor(item.score);
 
               listItem.appendChild(rank);
               listItem.appendChild(name);
-              listItem.appendChild(score);
+              listItem.appendChild(scoreSpan);
               listElement.appendChild(listItem);
             });
           }
-        });
+        }
 
         document.getElementById('high-scores-overlay').classList.add('show');
       };
