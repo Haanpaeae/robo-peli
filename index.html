@@ -353,6 +353,59 @@
       background: #2196f3;
       border-color: #64b5f6;
     }
+
+    /* Pause overlay */
+    .pause-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1900;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+    .pause-overlay.show {
+      display: flex;
+    }
+    .pause-box {
+      background: #222;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      min-width: 260px;
+      max-width: 90%;
+    }
+    .pause-box h2 {
+      margin-bottom: 20px;
+      font-size: 26px;
+    }
+    .pause-box button {
+      padding: 12px 24px;
+      margin: 10px 5px;
+      font-size: 16px;
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      transition: background 0.2s;
+    }
+    .pause-box button.end {
+      background: #e53935;
+    }
+    .pause-box button:hover {
+      background: #45a049;
+    }
+    .pause-box button.end:hover {
+      background: #ef5350;
+    }
   </style>
 </head>
 
@@ -365,6 +418,13 @@
       <button class="difficulty-button easy" data-difficulty="easy">Helppo</button>
       <button class="difficulty-button normal" data-difficulty="normal">Normaali</button>
       <button class="difficulty-button scores" onclick="showHighScores()">Näytä tulokset</button>
+    </div>
+  </div>
+  <div id="pause-overlay" class="pause-overlay">
+    <div class="pause-box">
+      <h2>Peli pysäytetty</h2>
+      <button onclick="resumeGame()">Jatka peliä</button>
+      <button class="end" onclick="endGameFromPause()">Lopeta peli</button>
     </div>
   </div>
   <div id="high-scores-overlay" class="high-scores-overlay">
@@ -617,9 +677,11 @@
       let gameOver = false;
       let difficulty = null; // 'easy' or 'normal'
       let gameStarted = false;
+      let isPaused = false;
 
       // ---------- High scores ----------
-      const HIGH_SCORES_KEY = 'roboPeliHighScores';
+      const HIGH_SCORES_KEY_EASY = 'roboPeliHighScores_easy';
+      const HIGH_SCORES_KEY_NORMAL = 'roboPeliHighScores_normal';
       const MAX_HIGH_SCORES = 10;
       let scoreInputShown = false;
 
@@ -667,9 +729,40 @@
       });
 
       // Mobile: pointerdown starts jump and holding affects jump, pointerup ends hold
+      let pauseTapCount = 0;
+      let lastPauseTapTime = 0;
+
+      function handleSecretPauseTap(e) {
+        if (difficulty !== 'easy' || !gameStarted || gameOver) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const regionWidth = rect.width * 0.25;
+        const regionHeight = rect.height * 0.25;
+
+        if (x >= rect.width - regionWidth && y <= regionHeight) {
+          const now = performance.now();
+          if (now - lastPauseTapTime > 1200) {
+            pauseTapCount = 0;
+          }
+          pauseTapCount++;
+          lastPauseTapTime = now;
+
+          if (pauseTapCount >= 3) {
+            pauseTapCount = 0;
+            enterPause();
+          }
+        }
+      }
+
       if (MOBILE_TAP_ONLY) {
         canvas.addEventListener("pointerdown", (e) => {
           e.preventDefault();
+
+          handleSecretPauseTap(e);
+          if (isPaused) return;
 
           if (gameOver && !scoreInputShown) {
             // Return to difficulty menu on restart (but not if score input is showing)
@@ -695,23 +788,26 @@
       }
 
       // ---------- High scores functions ----------
-      function getHighScores() {
-        const scores = localStorage.getItem(HIGH_SCORES_KEY);
+      function getHighScores(mode) {
+        const key = mode === 'easy' ? HIGH_SCORES_KEY_EASY : HIGH_SCORES_KEY_NORMAL;
+        const scores = localStorage.getItem(key);
         return scores ? JSON.parse(scores) : [];
       }
 
-      function saveHighScore(name, score) {
-        const scores = getHighScores();
+      function saveHighScore(name, score, mode) {
+        const key = mode === 'easy' ? HIGH_SCORES_KEY_EASY : HIGH_SCORES_KEY_NORMAL;
+        const scores = getHighScores(mode);
         scores.push({ name, score, date: new Date().toISOString() });
         scores.sort((a, b) => b.score - a.score);
         scores.splice(MAX_HIGH_SCORES);
-        localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores));
+        localStorage.setItem(key, JSON.stringify(scores));
       }
 
-      function isHighScore(score) {
-        const scores = getHighScores();
-        if (scores.length < MAX_HIGH_SCORES) return true;
-        return score > scores[scores.length - 1].score;
+      function isHighScore(score, mode) {
+        const scores = getHighScores(mode);
+        if (scores.length === 0) return true;
+        // High score means new #1
+        return score > scores[0].score;
       }
 
       function showScoreInput() {
@@ -727,7 +823,8 @@
       window.saveScore = function () {
         const nameInput = document.getElementById('player-name-input');
         const name = nameInput.value.trim() || 'Anonyymi';
-        saveHighScore(name, Math.floor(score));
+        const modeForSave = difficulty === 'easy' ? 'easy' : 'normal';
+        saveHighScore(name, Math.floor(score), modeForSave);
         document.getElementById('score-input-overlay').classList.remove('show');
         // Return to difficulty menu
         gameStarted = false;
@@ -748,39 +845,55 @@
       };
 
       window.showHighScores = function () {
-        const scores = getHighScores();
         const listElement = document.getElementById('high-scores-list');
         listElement.innerHTML = '';
 
-        if (scores.length === 0) {
-          const emptyItem = document.createElement('li');
-          emptyItem.textContent = 'Ei vielä tuloksia';
-          emptyItem.style.padding = '20px';
-          emptyItem.style.color = '#999';
-          listElement.appendChild(emptyItem);
-        } else {
-          scores.forEach((item, index) => {
-            const listItem = document.createElement('li');
-            listItem.className = 'high-score-item' + (index === 0 ? ' top' : '');
+        const modes = [
+          { key: 'easy', title: 'Helppo' },
+          { key: 'normal', title: 'Normaali' },
+        ];
 
-            const rank = document.createElement('span');
-            rank.className = 'high-score-rank';
-            rank.textContent = (index + 1) + '.';
+        modes.forEach((mode, modeIndex) => {
+          const scores = getHighScores(mode.key);
 
-            const name = document.createElement('span');
-            name.className = 'high-score-name';
-            name.textContent = item.name;
+          const headerItem = document.createElement('li');
+          headerItem.style.padding = '8px 0';
+          headerItem.style.marginTop = modeIndex === 0 ? '0' : '16px';
+          headerItem.style.fontWeight = 'bold';
+          headerItem.style.textAlign = 'left';
+          headerItem.textContent = mode.title + ' tila';
+          listElement.appendChild(headerItem);
 
-            const score = document.createElement('span');
-            score.className = 'high-score-score';
-            score.textContent = Math.floor(item.score);
+          if (scores.length === 0) {
+            const emptyItem = document.createElement('li');
+            emptyItem.textContent = 'Ei vielä tuloksia';
+            emptyItem.style.padding = '6px 0 12px 0';
+            emptyItem.style.color = '#999';
+            listElement.appendChild(emptyItem);
+          } else {
+            scores.forEach((item, index) => {
+              const listItem = document.createElement('li');
+              listItem.className = 'high-score-item' + (index === 0 ? ' top' : '');
 
-            listItem.appendChild(rank);
-            listItem.appendChild(name);
-            listItem.appendChild(score);
-            listElement.appendChild(listItem);
-          });
-        }
+              const rank = document.createElement('span');
+              rank.className = 'high-score-rank';
+              rank.textContent = (index + 1) + '.';
+
+              const name = document.createElement('span');
+              name.className = 'high-score-name';
+              name.textContent = item.name;
+
+              const score = document.createElement('span');
+              score.className = 'high-score-score';
+              score.textContent = Math.floor(item.score);
+
+              listItem.appendChild(rank);
+              listItem.appendChild(name);
+              listItem.appendChild(score);
+              listElement.appendChild(listItem);
+            });
+          }
+        });
 
         document.getElementById('high-scores-overlay').classList.add('show');
       };
@@ -789,6 +902,37 @@
         document.getElementById('high-scores-overlay').classList.remove('show');
         // Ensure main menu is visible after closing scores
         difficultyMenu.classList.remove('hidden');
+      };
+
+      function enterPause() {
+        isPaused = true;
+        const pauseOverlay = document.getElementById('pause-overlay');
+        if (pauseOverlay) pauseOverlay.classList.add('show');
+      }
+
+      function exitPause() {
+        isPaused = false;
+        const pauseOverlay = document.getElementById('pause-overlay');
+        if (pauseOverlay) pauseOverlay.classList.remove('show');
+      }
+
+      window.resumeGame = function () {
+        exitPause();
+      };
+
+      window.endGameFromPause = function () {
+        exitPause();
+        const finalScore = Math.floor(score);
+        if (difficulty && isHighScore(finalScore, difficulty)) {
+          showScoreInput();
+        } else {
+          // No new high score -> just return to menu
+          gameStarted = false;
+          difficulty = null;
+          gameOver = false;
+          scoreInputShown = false;
+          difficultyMenu.classList.remove('hidden');
+        }
       };
 
       // Allow Enter key to save score
@@ -904,6 +1048,7 @@
         // Don't update game if orientation message is showing or game hasn't started
         if (IS_MOBILE && !isLandscape()) return;
         if (!gameStarted || difficulty === null) return;
+        if (isPaused) return;
 
         if (gameOver) return;
 
@@ -1083,8 +1228,8 @@
         ctx.font = "16px system-ui, sans-serif";
         ctx.fillText("Pisteet: " + Math.floor(score), 12 + hudPaddingX, 24);
 
-        const speedKmh = (worldSpeed / 100).toFixed(1);
-        ctx.fillText("Nopeus: " + speedKmh, 12 + hudPaddingX, 44);
+        const speedShown = (worldSpeed / 100).toFixed(1);
+        ctx.fillText("Nopeus: " + speedShown, 12 + hudPaddingX, 44);
 
         if (gameOver) {
           ctx.fillStyle = "rgba(0,0,0,0.6)";
