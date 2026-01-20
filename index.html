@@ -984,16 +984,8 @@
 
       window.endGameFromPause = function () {
         exitPause();
-        const finalScore = Math.floor(score);
-        if (difficulty && isHighScore(finalScore, difficulty)) {
+        if (!scoreInputShown) {
           showScoreInput();
-        } else {
-          // No new high score -> just return to menu
-          gameStarted = false;
-          difficulty = null;
-          gameOver = false;
-          scoreInputShown = false;
-          difficultyMenu.classList.remove('hidden');
         }
       };
 
@@ -1305,11 +1297,9 @@
           const finalScore = Math.floor(score);
           ctx.fillText("Pisteesi: " + finalScore, W / 2 - 50, H / 2);
 
-          // Check if it's a high score
-          if (!scoreInputShown && isHighScore(finalScore)) {
+          // Show name input once after Game Over
+          if (!scoreInputShown) {
             setTimeout(() => showScoreInput(), 500); // Small delay for better UX
-          } else if (!scoreInputShown) {
-            ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W / 2 - 135, H / 2 + 30);
           }
         }
       }
