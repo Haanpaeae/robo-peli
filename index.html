@@ -123,6 +123,80 @@
       background: #ff9800;
       border-color: #ffb74d;
     }
+    
+    /* Score input overlay */
+    .score-input-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1500;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+    .score-input-overlay.show {
+      display: flex;
+    }
+    .score-input-box {
+      background: #222;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      min-width: 300px;
+      max-width: 90%;
+    }
+    .score-input-box h2 {
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+    .score-input-box p {
+      margin: 15px 0;
+      font-size: 18px;
+      color: #bbb;
+    }
+    .score-input-box input {
+      padding: 12px;
+      font-size: 18px;
+      width: 200px;
+      margin: 15px 0;
+      text-align: center;
+      border: 2px solid #555;
+      border-radius: 5px;
+      background: #333;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+    .score-input-box input:focus {
+      outline: none;
+      border-color: #4caf50;
+    }
+    .score-input-box button {
+      padding: 12px 24px;
+      margin: 10px 5px;
+      font-size: 16px;
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      transition: background 0.2s;
+    }
+    .score-input-box button:hover {
+      background: #45a049;
+    }
+    .score-input-box button.skip {
+      background: #666;
+    }
+    .score-input-box button.skip:hover {
+      background: #777;
+    }
   </style>
 </head>
 <body>
@@ -138,6 +212,17 @@
     <div class="orientation-icon">📱</div>
     <h2>Käännä laite vaakatasoon</h2>
     <p>Peli vaatii vaaka-asennon parhaaseen pelikokemukseen</p>
+  </div>
+  <div id="score-input-overlay" class="score-input-overlay">
+    <div class="score-input-box">
+      <h2>Uusi ennätys!</h2>
+      <p>Pisteesi: <span id="final-score-display"></span></p>
+      <input type="text" id="player-name-input" placeholder="Syötä nimesi" maxlength="20">
+      <div>
+        <button onclick="saveScore()">Tallenna</button>
+        <button class="skip" onclick="skipScore()">Ohita</button>
+      </div>
+    </div>
   </div>
   <canvas id="game" width="900" height="450"></canvas>
 
@@ -367,6 +452,11 @@
   let difficulty = null; // 'easy' or 'normal'
   let gameStarted = false;
 
+  // ---------- High scores ----------
+  const HIGH_SCORES_KEY = 'roboPeliHighScores';
+  const MAX_HIGH_SCORES = 10;
+  let scoreInputShown = false;
+
   let worldSpeed = WORLD_SPEED_START;
   let spawnPickupTimer = 0;
   let obstacleDistLeft = 0;
@@ -383,10 +473,12 @@
     keys.add(e.code);
 
     if (e.code === "KeyR") {
-      if (gameOver) {
-        // Return to difficulty menu on restart
+      if (gameOver && !scoreInputShown) {
+        // Return to difficulty menu on restart (but not if score input is showing)
         gameStarted = false;
         difficulty = null;
+        gameOver = false;
+        scoreInputShown = false;
         difficultyMenu.classList.remove('hidden');
       }
     }
@@ -413,10 +505,12 @@
     canvas.addEventListener("pointerdown", (e) => {
       e.preventDefault();
 
-      if (gameOver) {
-        // Return to difficulty menu on restart
+      if (gameOver && !scoreInputShown) {
+        // Return to difficulty menu on restart (but not if score input is showing)
         gameStarted = false;
         difficulty = null;
+        gameOver = false;
+        scoreInputShown = false;
         difficultyMenu.classList.remove('hidden');
         return;
       }
@@ -434,6 +528,69 @@
     window.addEventListener("pointerleave", endHold, { passive: true });
   }
 
+  // ---------- High scores functions ----------
+  function getHighScores() {
+    const scores = localStorage.getItem(HIGH_SCORES_KEY);
+    return scores ? JSON.parse(scores) : [];
+  }
+
+  function saveHighScore(name, score) {
+    const scores = getHighScores();
+    scores.push({ name, score, date: new Date().toISOString() });
+    scores.sort((a, b) => b.score - a.score);
+    scores.splice(MAX_HIGH_SCORES);
+    localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores));
+  }
+
+  function isHighScore(score) {
+    const scores = getHighScores();
+    if (scores.length < MAX_HIGH_SCORES) return true;
+    return score > scores[scores.length - 1].score;
+  }
+
+  function showScoreInput() {
+    const finalScore = Math.floor(score);
+    document.getElementById('final-score-display').textContent = finalScore;
+    document.getElementById('score-input-overlay').classList.add('show');
+    document.getElementById('player-name-input').value = '';
+    document.getElementById('player-name-input').focus();
+    scoreInputShown = true;
+  }
+
+  // Make functions global for onclick handlers
+  window.saveScore = function() {
+    const nameInput = document.getElementById('player-name-input');
+    const name = nameInput.value.trim() || 'Anonyymi';
+    saveHighScore(name, Math.floor(score));
+    document.getElementById('score-input-overlay').classList.remove('show');
+    // Return to difficulty menu
+    gameStarted = false;
+    difficulty = null;
+    gameOver = false;
+    scoreInputShown = false;
+    difficultyMenu.classList.remove('hidden');
+  };
+
+  window.skipScore = function() {
+    document.getElementById('score-input-overlay').classList.remove('show');
+    // Return to difficulty menu
+    gameStarted = false;
+    difficulty = null;
+    gameOver = false;
+    scoreInputShown = false;
+    difficultyMenu.classList.remove('hidden');
+  };
+
+  // Allow Enter key to save score
+  const playerNameInput = document.getElementById('player-name-input');
+  if (playerNameInput) {
+    playerNameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        saveScore();
+      }
+    });
+  }
+
   function reset() {
     player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
     player.y = GROUND_Y - player.h - PLAYER_Y_LIFT;
@@ -446,6 +603,7 @@
     pickups = [];
     score = 0;
     gameOver = false;
+    scoreInputShown = false;
 
     worldSpeed = WORLD_SPEED_START;
     spawnPickupTimer = 0;
@@ -714,10 +872,18 @@
 
       ctx.fillStyle = "#fff";
       ctx.font = "28px system-ui, sans-serif";
-      ctx.fillText("Game Over", W/2 - 80, H/2 - 10);
+      ctx.fillText("Game Over", W/2 - 80, H/2 - 30);
 
       ctx.font = "16px system-ui, sans-serif";
-      ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W/2 - 135, H/2 + 20);
+      const finalScore = Math.floor(score);
+      ctx.fillText("Pisteesi: " + finalScore, W/2 - 50, H/2);
+      
+      // Check if it's a high score
+      if (!scoreInputShown && isHighScore(finalScore)) {
+        setTimeout(() => showScoreInput(), 500); // Small delay for better UX
+      } else if (!scoreInputShown) {
+        ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W/2 - 135, H/2 + 30);
+      }
     }
   }
 
