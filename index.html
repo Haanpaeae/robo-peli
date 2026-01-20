@@ -465,7 +465,7 @@
   <script>
     const SUPABASE_URL = "https://omtqhuijysrzvpsjqnxm.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_h5ePtvFrJ8IzUS3er-HICg_HjSGUAeK";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
 
   <script>
@@ -829,7 +829,7 @@
       // -------- Server-side high score helpers (Supabase) --------
       async function saveHighScoreToServer(mode, name, score) {
         try {
-          const { error } = await supabase
+          const { error } = await supabaseClient
             .from('highscores')
             .insert({
               mode,
@@ -847,7 +847,7 @@
 
       async function fetchHighScoresFromServer(mode) {
         try {
-          const { data, error } = await supabase
+          const { data, error } = await supabaseClient
             .from('highscores')
             .select('name, score, created_at')
             .eq('mode', mode)
