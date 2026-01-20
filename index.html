@@ -460,6 +460,9 @@
   </div>
   <canvas id="game" width="900" height="450"></canvas>
   <audio id="bg-music" src="theme.mp3" loop></audio>
+  <audio id="pickup-sfx" src="pickup.mp3"></audio>
+  <audio id="crash-sfx" src="crash.mp3"></audio>
+  <audio id="thanks-sfx" src="thanks.m4a"></audio>
 
   <!-- Supabase client for server-side high score storage -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -474,6 +477,9 @@
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
       const bgMusic = document.getElementById("bg-music");
+      const pickupSfx = document.getElementById("pickup-sfx");
+      const crashSfx = document.getElementById("crash-sfx");
+      const thanksSfx = document.getElementById("thanks-sfx");
       const orientationMessage = document.getElementById("orientation-message");
       const hintText = document.getElementById("hint-text");
       const difficultyMenu = document.getElementById("difficulty-menu");
@@ -720,6 +726,13 @@
         bgMusic.currentTime = 0;
       }
 
+      function playSfx(audioEl, volume = 1) {
+        if (!audioEl) return;
+        audioEl.currentTime = 0;
+        audioEl.volume = volume;
+        audioEl.play().catch(() => { /* ignore autoplay / race issues */ });
+      }
+
       // ---------- Input state (supports hold) ----------
       const keys = new Set();
       let jumpHeld = false;
@@ -903,6 +916,7 @@
 
         // Mirror to Supabase (server-side storage)
         saveHighScoreToServer(modeForSave, name, finalScore);
+        playSfx(thanksSfx, 0.8);
         document.getElementById('score-input-overlay').classList.remove('show');
         // Return to difficulty menu
         gameStarted = false;
@@ -1221,6 +1235,7 @@
         if (difficulty === 'normal') {
           for (const ob of obstacles) {
             if (rectsOverlap(player, ob)) {
+              playSfx(crashSfx, 0.7);
               gameOver = true;
               return;
             }
@@ -1232,6 +1247,7 @@
           if (!p.collected && rectsOverlap(player, p)) {
             p.collected = true;
             score += 100;
+            playSfx(pickupSfx, 0.7);
           }
         }
 
