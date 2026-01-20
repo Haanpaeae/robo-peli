@@ -619,39 +619,6 @@
         checkOrientation();
       }
 
-      // ---------- Audio toggles ----------
-      function updateAudioToggleButtons() {
-        if (musicToggleBtn) {
-          musicToggleBtn.classList.toggle('active', musicEnabled);
-          musicToggleBtn.textContent = musicEnabled ? 'Musiikki: päällä' : 'Musiikki: pois';
-        }
-        if (sfxToggleBtn) {
-          sfxToggleBtn.classList.toggle('active', sfxEnabled);
-          sfxToggleBtn.textContent = sfxEnabled ? 'Äänet: päällä' : 'Äänet: pois';
-        }
-      }
-
-      if (musicToggleBtn) {
-        musicToggleBtn.addEventListener('click', () => {
-          musicEnabled = !musicEnabled;
-          if (!musicEnabled) {
-            stopBackgroundMusic();
-          } else if (gameStarted) {
-            startBackgroundMusic();
-          }
-          updateAudioToggleButtons();
-        });
-      }
-
-      if (sfxToggleBtn) {
-        sfxToggleBtn.addEventListener('click', () => {
-          sfxEnabled = !sfxEnabled;
-          updateAudioToggleButtons();
-        });
-      }
-
-      updateAudioToggleButtons();
-
       // ---------- Assets ----------
       function loadImage(src) {
         const img = new Image();
@@ -813,6 +780,39 @@
       let worldSpeed = WORLD_SPEED_START;
       let spawnPickupTimer = 0;
       let obstacleDistLeft = 0;
+
+      // ---------- Audio toggles ----------
+      function updateAudioToggleButtons() {
+        if (musicToggleBtn) {
+          musicToggleBtn.classList.toggle('active', musicEnabled);
+          musicToggleBtn.textContent = musicEnabled ? 'Musiikki: päällä' : 'Musiikki: pois';
+        }
+        if (sfxToggleBtn) {
+          sfxToggleBtn.classList.toggle('active', sfxEnabled);
+          sfxToggleBtn.textContent = sfxEnabled ? 'Äänet: päällä' : 'Äänet: pois';
+        }
+      }
+
+      if (musicToggleBtn) {
+        musicToggleBtn.addEventListener('click', () => {
+          musicEnabled = !musicEnabled;
+          if (!musicEnabled) {
+            stopBackgroundMusic();
+          } else if (gameStarted) {
+            startBackgroundMusic();
+          }
+          updateAudioToggleButtons();
+        });
+      }
+
+      if (sfxToggleBtn) {
+        sfxToggleBtn.addEventListener('click', () => {
+          sfxEnabled = !sfxEnabled;
+          updateAudioToggleButtons();
+        });
+      }
+
+      updateAudioToggleButtons();
 
       function startBackgroundMusic() {
         if (!bgMusic || !musicEnabled) return;
