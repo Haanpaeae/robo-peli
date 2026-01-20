@@ -122,6 +122,32 @@
       width: 280px;
     }
 
+    .audio-toggle-row {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    .audio-toggle-row button {
+      padding: 6px 12px;
+      font-size: 14px;
+      background: #444;
+      color: #fff;
+      border: 1px solid #777;
+      border-radius: 999px;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+    }
+
+    .audio-toggle-row button.active {
+      background: #4caf50;
+      border-color: #66bb6a;
+    }
+
     .difficulty-button {
       padding: 20px 40px;
       font-size: 20px;
@@ -450,6 +476,14 @@
       <button class="difficulty-button normal" data-difficulty="normal">Normaali</button>
       <button class="difficulty-button scores" onclick="showHighScores()">Näytä tulokset</button>
     </div>
+    <div class="audio-toggle-row">
+      <div>
+        <button id="music-toggle" class="active">Musiikki: päällä</button>
+      </div>
+      <div>
+        <button id="sfx-toggle" class="active">Äänet: päällä</button>
+      </div>
+    </div>
   </div>
   <div id="pause-overlay" class="pause-overlay">
     <div class="pause-box">
@@ -506,6 +540,8 @@
       const orientationMessage = document.getElementById("orientation-message");
       const hintText = document.getElementById("hint-text");
       const difficultyMenu = document.getElementById("difficulty-menu");
+      const musicToggleBtn = document.getElementById("music-toggle");
+      const sfxToggleBtn = document.getElementById("sfx-toggle");
 
       const W = canvas.width;
       const H = canvas.height;
@@ -582,6 +618,39 @@
         // Initial check
         checkOrientation();
       }
+
+      // ---------- Audio toggles ----------
+      function updateAudioToggleButtons() {
+        if (musicToggleBtn) {
+          musicToggleBtn.classList.toggle('active', musicEnabled);
+          musicToggleBtn.textContent = musicEnabled ? 'Musiikki: päällä' : 'Musiikki: pois';
+        }
+        if (sfxToggleBtn) {
+          sfxToggleBtn.classList.toggle('active', sfxEnabled);
+          sfxToggleBtn.textContent = sfxEnabled ? 'Äänet: päällä' : 'Äänet: pois';
+        }
+      }
+
+      if (musicToggleBtn) {
+        musicToggleBtn.addEventListener('click', () => {
+          musicEnabled = !musicEnabled;
+          if (!musicEnabled) {
+            stopBackgroundMusic();
+          } else if (gameStarted) {
+            startBackgroundMusic();
+          }
+          updateAudioToggleButtons();
+        });
+      }
+
+      if (sfxToggleBtn) {
+        sfxToggleBtn.addEventListener('click', () => {
+          sfxEnabled = !sfxEnabled;
+          updateAudioToggleButtons();
+        });
+      }
+
+      updateAudioToggleButtons();
 
       // ---------- Assets ----------
       function loadImage(src) {
@@ -732,6 +801,8 @@
       let difficulty = null; // 'easy' or 'normal'
       let gameStarted = false;
       let isPaused = false;
+      let musicEnabled = true;
+      let sfxEnabled = true;
 
       // ---------- High scores ----------
       const HIGH_SCORES_KEY_EASY = 'roboPeliHighScores_easy';
@@ -744,7 +815,7 @@
       let obstacleDistLeft = 0;
 
       function startBackgroundMusic() {
-        if (!bgMusic) return;
+        if (!bgMusic || !musicEnabled) return;
         if (!bgMusic.paused) return;
         bgMusic.volume = 0.4;
         bgMusic.play().catch(() => { /* autoplay estetty, ei haittaa */ });
@@ -757,7 +828,7 @@
       }
 
       function playSfx(audioEl, volume = 1) {
-        if (!audioEl) return;
+        if (!audioEl || !sfxEnabled) return;
         audioEl.currentTime = 0;
         audioEl.volume = volume;
         audioEl.play().catch(() => { /* ignore autoplay / race issues */ });
