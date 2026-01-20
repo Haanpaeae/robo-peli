@@ -250,6 +250,9 @@
       background: linear-gradient(90deg, #4caf50, #333);
       border: 2px solid #4caf50;
     }
+    .high-score-item.top .high-score-rank {
+      color: #fff;
+    }
     .high-score-rank {
       font-weight: bold;
       min-width: 30px;
@@ -720,6 +723,8 @@
 
   window.hideHighScores = function() {
     document.getElementById('high-scores-overlay').classList.remove('show');
+    // Ensure main menu is visible after closing scores
+    difficultyMenu.classList.remove('hidden');
   };
 
   // Allow Enter key to save score
