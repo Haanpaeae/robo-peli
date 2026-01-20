@@ -197,6 +197,97 @@
     .score-input-box button.skip:hover {
       background: #777;
     }
+    
+    /* High scores list overlay */
+    .high-scores-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+    .high-scores-overlay.show {
+      display: flex;
+    }
+    .high-scores-box {
+      background: #222;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      min-width: 350px;
+      max-width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .high-scores-box h2 {
+      margin-bottom: 20px;
+      font-size: 28px;
+    }
+    .high-scores-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .high-score-item {
+      padding: 12px;
+      margin: 8px 0;
+      background: #333;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 18px;
+    }
+    .high-score-item.top {
+      background: linear-gradient(90deg, #4caf50, #333);
+      border: 2px solid #4caf50;
+    }
+    .high-score-rank {
+      font-weight: bold;
+      min-width: 30px;
+      color: #4caf50;
+    }
+    .high-score-name {
+      flex: 1;
+      text-align: left;
+      margin-left: 15px;
+    }
+    .high-score-score {
+      font-weight: bold;
+      min-width: 80px;
+      text-align: right;
+    }
+    .high-scores-box button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 16px;
+      background: #666;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      transition: background 0.2s;
+    }
+    .high-scores-box button:hover {
+      background: #777;
+    }
+    .difficulty-button.scores {
+      border-color: #2196f3;
+      margin-top: 10px;
+    }
+    .difficulty-button.scores:hover {
+      background: #2196f3;
+      border-color: #64b5f6;
+    }
   </style>
 </head>
 <body>
@@ -206,6 +297,14 @@
     <div class="difficulty-buttons">
       <button class="difficulty-button easy" data-difficulty="easy">Helppo</button>
       <button class="difficulty-button normal" data-difficulty="normal">Normaali</button>
+      <button class="difficulty-button scores" onclick="showHighScores()">Näytä tulokset</button>
+    </div>
+  </div>
+  <div id="high-scores-overlay" class="high-scores-overlay">
+    <div class="high-scores-box">
+      <h2>Parhaat tulokset</h2>
+      <ul id="high-scores-list" class="high-scores-list"></ul>
+      <button onclick="hideHighScores()">Sulje</button>
     </div>
   </div>
   <div id="orientation-message" class="orientation-message">
@@ -579,6 +678,48 @@
     gameOver = false;
     scoreInputShown = false;
     difficultyMenu.classList.remove('hidden');
+  };
+
+  window.showHighScores = function() {
+    const scores = getHighScores();
+    const listElement = document.getElementById('high-scores-list');
+    listElement.innerHTML = '';
+    
+    if (scores.length === 0) {
+      const emptyItem = document.createElement('li');
+      emptyItem.textContent = 'Ei vielä tuloksia';
+      emptyItem.style.padding = '20px';
+      emptyItem.style.color = '#999';
+      listElement.appendChild(emptyItem);
+    } else {
+      scores.forEach((item, index) => {
+        const listItem = document.createElement('li');
+        listItem.className = 'high-score-item' + (index === 0 ? ' top' : '');
+        
+        const rank = document.createElement('span');
+        rank.className = 'high-score-rank';
+        rank.textContent = (index + 1) + '.';
+        
+        const name = document.createElement('span');
+        name.className = 'high-score-name';
+        name.textContent = item.name;
+        
+        const score = document.createElement('span');
+        score.className = 'high-score-score';
+        score.textContent = Math.floor(item.score);
+        
+        listItem.appendChild(rank);
+        listItem.appendChild(name);
+        listItem.appendChild(score);
+        listElement.appendChild(listItem);
+      });
+    }
+    
+    document.getElementById('high-scores-overlay').classList.add('show');
+  };
+
+  window.hideHighScores = function() {
+    document.getElementById('high-scores-overlay').classList.remove('show');
   };
 
   // Allow Enter key to save score
