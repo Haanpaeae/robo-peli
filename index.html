@@ -459,6 +459,7 @@
     </div>
   </div>
   <canvas id="game" width="900" height="450"></canvas>
+  <audio id="bg-music" src="theme.mp3" loop></audio>
 
   <!-- Supabase client for server-side high score storage -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -472,6 +473,7 @@
     (() => {
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
+      const bgMusic = document.getElementById("bg-music");
       const orientationMessage = document.getElementById("orientation-message");
       const hintText = document.getElementById("hint-text");
       const difficultyMenu = document.getElementById("difficulty-menu");
@@ -705,6 +707,19 @@
       let spawnPickupTimer = 0;
       let obstacleDistLeft = 0;
 
+      function startBackgroundMusic() {
+        if (!bgMusic) return;
+        if (!bgMusic.paused) return;
+        bgMusic.volume = 0.4;
+        bgMusic.play().catch(() => { /* autoplay estetty, ei haittaa */ });
+      }
+
+      function stopBackgroundMusic() {
+        if (!bgMusic) return;
+        bgMusic.pause();
+        bgMusic.currentTime = 0;
+      }
+
       // ---------- Input state (supports hold) ----------
       const keys = new Set();
       let jumpHeld = false;
@@ -723,6 +738,7 @@
             difficulty = null;
             gameOver = false;
             scoreInputShown = false;
+            stopBackgroundMusic();
             difficultyMenu.classList.remove('hidden');
           }
         }
@@ -786,6 +802,7 @@
             difficulty = null;
             gameOver = false;
             scoreInputShown = false;
+            stopBackgroundMusic();
             difficultyMenu.classList.remove('hidden');
             return;
           }
@@ -892,6 +909,7 @@
         difficulty = null;
         gameOver = false;
         scoreInputShown = false;
+        stopBackgroundMusic();
         difficultyMenu.classList.remove('hidden');
       };
 
@@ -902,6 +920,7 @@
         difficulty = null;
         gameOver = false;
         scoreInputShown = false;
+        stopBackgroundMusic();
         difficultyMenu.classList.remove('hidden');
       };
 
@@ -1033,6 +1052,7 @@
         difficulty = selectedDifficulty;
         gameStarted = true;
         difficultyMenu.classList.add('hidden');
+        startBackgroundMusic();
         reset();
       }
 
