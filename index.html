@@ -916,7 +916,8 @@
 
         // Mirror to Supabase (server-side storage)
         saveHighScoreToServer(modeForSave, name, finalScore);
-        playSfx(thanksSfx, 0.8);
+        // Play louder confirmation sound when score is saved
+        playSfx(thanksSfx, 1.0);
         document.getElementById('score-input-overlay').classList.remove('show');
         // Return to difficulty menu
         gameStarted = false;
