@@ -49,7 +49,7 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 1000;
+      z-index: 3000;
       color: #fff;
       font-family: system-ui, sans-serif;
       text-align: center;
@@ -504,15 +504,22 @@
       }
 
       function checkOrientation() {
-        if (IS_MOBILE) {
-          if (isLandscape()) {
-            orientationMessage.classList.remove('show');
-            hintText.classList.add('hide-on-mobile-landscape');
-            scaleCanvasForMobile();
-          } else {
-            orientationMessage.classList.add('show');
-            hintText.classList.remove('hide-on-mobile-landscape');
+        if (!IS_MOBILE) return;
+
+        if (isLandscape()) {
+          orientationMessage.classList.remove('show');
+          hintText.classList.add('hide-on-mobile-landscape');
+          scaleCanvasForMobile();
+
+          // Näytä päävalikko vain, jos peliä ei ole käynnissä
+          if (!gameStarted && difficulty === null) {
+            difficultyMenu.classList.remove('hidden');
           }
+        } else {
+          // Pystyssä näytetään aina kääntö-viesti ja piilotetaan valikko
+          orientationMessage.classList.add('show');
+          hintText.classList.remove('hide-on-mobile-landscape');
+          difficultyMenu.classList.add('hidden');
         }
       }
 
