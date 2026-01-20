@@ -1,26 +1,42 @@
 ﻿<!doctype html>
 <html lang="fi">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Simple Runner</title>
   <style>
-    html, body { height: 100%; margin: 0; background: #111; overflow: hidden; }
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: #111;
+      overflow: hidden;
+    }
+
     canvas {
       display: block;
       margin: 0 auto;
       background: #1b1b1b;
-      touch-action: none; /* estää scrollin ja pinch-zoomin canvasin päällä */
+      touch-action: none;
+      /* estää scrollin ja pinch-zoomin canvasin päällä */
       width: min(100vw, 900px);
       height: auto;
     }
-    .hint { color:#bbb; font: 14px/1.4 system-ui, sans-serif; text-align:center; margin: 10px 0; }
+
+    .hint {
+      color: #bbb;
+      font: 14px/1.4 system-ui, sans-serif;
+      text-align: center;
+      margin: 10px 0;
+    }
+
     @media (pointer: coarse) {
       .hint.hide-on-mobile-landscape {
         display: none;
       }
     }
-    
+
     /* Orientation message overlay */
     .orientation-message {
       position: fixed;
@@ -39,27 +55,39 @@
       text-align: center;
       padding: 20px;
     }
+
     .orientation-message.show {
       display: flex;
     }
+
     .orientation-message h2 {
       font-size: 24px;
       margin-bottom: 20px;
     }
+
     .orientation-message p {
       font-size: 18px;
       color: #bbb;
     }
+
     .orientation-icon {
       font-size: 64px;
       margin-bottom: 20px;
       animation: rotate 2s ease-in-out infinite;
     }
+
     @keyframes rotate {
-      0%, 100% { transform: rotate(0deg); }
-      50% { transform: rotate(90deg); }
+
+      0%,
+      100% {
+        transform: rotate(0deg);
+      }
+
+      50% {
+        transform: rotate(90deg);
+      }
     }
-    
+
     /* Difficulty selection menu */
     .difficulty-menu {
       position: fixed;
@@ -76,20 +104,24 @@
       color: #fff;
       font-family: system-ui, sans-serif;
     }
+
     .difficulty-menu.hidden {
       display: none;
     }
+
     .difficulty-menu h1 {
       font-size: 32px;
       margin-bottom: 40px;
       color: #fff;
     }
+
     .difficulty-buttons {
       display: flex;
       flex-direction: column;
       gap: 20px;
       width: 280px;
     }
+
     .difficulty-button {
       padding: 20px 40px;
       font-size: 20px;
@@ -101,29 +133,35 @@
       transition: all 0.2s;
       font-family: system-ui, sans-serif;
     }
+
     .difficulty-button:hover {
       background: #444;
       border-color: #777;
       transform: scale(1.05);
     }
+
     .difficulty-button:active {
       transform: scale(0.98);
     }
+
     .difficulty-button.easy {
       border-color: #4caf50;
     }
+
     .difficulty-button.easy:hover {
       background: #4caf50;
       border-color: #66bb6a;
     }
+
     .difficulty-button.normal {
       border-color: #ff9800;
     }
+
     .difficulty-button.normal:hover {
       background: #ff9800;
       border-color: #ffb74d;
     }
-    
+
     /* Score input overlay */
     .score-input-overlay {
       position: fixed;
@@ -140,9 +178,11 @@
       color: #fff;
       font-family: system-ui, sans-serif;
     }
+
     .score-input-overlay.show {
       display: flex;
     }
+
     .score-input-box {
       background: #222;
       padding: 30px;
@@ -151,15 +191,18 @@
       min-width: 300px;
       max-width: 90%;
     }
+
     .score-input-box h2 {
       margin-bottom: 10px;
       font-size: 24px;
     }
+
     .score-input-box p {
       margin: 15px 0;
       font-size: 18px;
       color: #bbb;
     }
+
     .score-input-box input {
       padding: 12px;
       font-size: 18px;
@@ -172,10 +215,12 @@
       color: #fff;
       font-family: system-ui, sans-serif;
     }
+
     .score-input-box input:focus {
       outline: none;
       border-color: #4caf50;
     }
+
     .score-input-box button {
       padding: 12px 24px;
       margin: 10px 5px;
@@ -188,16 +233,19 @@
       font-family: system-ui, sans-serif;
       transition: background 0.2s;
     }
+
     .score-input-box button:hover {
       background: #45a049;
     }
+
     .score-input-box button.skip {
       background: #666;
     }
+
     .score-input-box button.skip:hover {
       background: #777;
     }
-    
+
     /* High scores list overlay */
     .high-scores-overlay {
       position: fixed;
@@ -214,9 +262,11 @@
       color: #fff;
       font-family: system-ui, sans-serif;
     }
+
     .high-scores-overlay.show {
       display: flex;
     }
+
     .high-scores-box {
       background: #222;
       padding: 30px;
@@ -227,15 +277,18 @@
       max-height: 80vh;
       overflow-y: auto;
     }
+
     .high-scores-box h2 {
       margin-bottom: 20px;
       font-size: 28px;
     }
+
     .high-scores-list {
       list-style: none;
       padding: 0;
       margin: 0;
     }
+
     .high-score-item {
       padding: 12px;
       margin: 8px 0;
@@ -246,28 +299,34 @@
       align-items: center;
       font-size: 18px;
     }
+
     .high-score-item.top {
       background: linear-gradient(90deg, #4caf50, #333);
       border: 2px solid #4caf50;
     }
+
     .high-score-item.top .high-score-rank {
       color: #fff;
     }
+
     .high-score-rank {
       font-weight: bold;
       min-width: 30px;
       color: #4caf50;
     }
+
     .high-score-name {
       flex: 1;
       text-align: left;
       margin-left: 15px;
     }
+
     .high-score-score {
       font-weight: bold;
       min-width: 80px;
       text-align: right;
     }
+
     .high-scores-box button {
       margin-top: 20px;
       padding: 12px 24px;
@@ -280,21 +339,26 @@
       font-family: system-ui, sans-serif;
       transition: background 0.2s;
     }
+
     .high-scores-box button:hover {
       background: #777;
     }
+
     .difficulty-button.scores {
       border-color: #2196f3;
       margin-top: 10px;
     }
+
     .difficulty-button.scores:hover {
       background: #2196f3;
       border-color: #64b5f6;
     }
   </style>
 </head>
+
 <body>
-  <div class="hint" id="hint-text">Desktop: nuolinäppäimet liiku, välilyönti hyppy, R restart. Mobiili: napauta ja pidä pohjassa pidempää hyppyä varten. Game Overissa napauta restart.</div>
+  <div class="hint" id="hint-text">Desktop: nuolinäppäimet liiku, välilyönti hyppy, R restart. Mobiili: napauta ja pidä
+    pohjassa pidempää hyppyä varten. Game Overissa napauta restart.</div>
   <div id="difficulty-menu" class="difficulty-menu">
     <h1>Valitse vaikeustaso</h1>
     <div class="difficulty-buttons">
@@ -328,724 +392,735 @@
   </div>
   <canvas id="game" width="900" height="450"></canvas>
 
-<script>
-(() => {
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
-  const orientationMessage = document.getElementById("orientation-message");
-  const hintText = document.getElementById("hint-text");
-  const difficultyMenu = document.getElementById("difficulty-menu");
+  <script>
+    (() => {
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const orientationMessage = document.getElementById("orientation-message");
+      const hintText = document.getElementById("hint-text");
+      const difficultyMenu = document.getElementById("difficulty-menu");
 
-  const W = canvas.width;
-  const H = canvas.height;
+      const W = canvas.width;
+      const H = canvas.height;
 
-  // ---------- Device mode ----------
-  const IS_MOBILE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap/hold to jump
-  const MOBILE_PLAYER_X = 120;
+      // ---------- Device mode ----------
+      const IS_MOBILE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      const MOBILE_TAP_ONLY = IS_MOBILE; // mobiilissa vain tap/hold to jump
+      const MOBILE_PLAYER_X = 120;
 
-  // ---------- Orientation detection ----------
-  function isLandscape() {
-    // Use Screen Orientation API if available, fallback to window dimensions
-    if (screen.orientation) {
-      return screen.orientation.angle === 90 || screen.orientation.angle === -90 || 
-             screen.orientation.type.includes('landscape');
-    }
-    // Fallback for older browsers
-    return window.innerWidth > window.innerHeight;
-  }
-
-  function checkOrientation() {
-    if (IS_MOBILE) {
-      if (isLandscape()) {
-        orientationMessage.classList.remove('show');
-        hintText.classList.add('hide-on-mobile-landscape');
-        scaleCanvasForMobile();
-      } else {
-        orientationMessage.classList.add('show');
-        hintText.classList.remove('hide-on-mobile-landscape');
+      // ---------- Orientation detection ----------
+      function isLandscape() {
+        // Use Screen Orientation API if available, fallback to window dimensions
+        if (screen.orientation) {
+          return screen.orientation.angle === 90 || screen.orientation.angle === -90 ||
+            screen.orientation.type.includes('landscape');
+        }
+        // Fallback for older browsers
+        return window.innerWidth > window.innerHeight;
       }
-    }
-  }
 
-  function scaleCanvasForMobile() {
-    if (!IS_MOBILE) return;
-    
-    const maxWidth = window.innerWidth;
-    const maxHeight = window.innerHeight;
-    const aspectRatio = W / H;
-    
-    // Calculate scale based on both width and height, use the smaller one
-    const scaleByWidth = maxWidth / W;
-    const scaleByHeight = maxHeight / H;
-    const scale = Math.min(scaleByWidth, scaleByHeight);
-    
-    // Apply scaling
-    const newWidth = W * scale;
-    const newHeight = H * scale;
-    
-    canvas.style.width = newWidth + 'px';
-    canvas.style.height = newHeight + 'px';
-  }
-
-  // Listen for orientation changes
-  if (IS_MOBILE) {
-    // Screen Orientation API
-    if (screen.orientation) {
-      screen.orientation.addEventListener('change', checkOrientation);
-    }
-    // Fallback: window resize and orientationchange
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', () => {
-      // Small delay to let orientation settle
-      setTimeout(checkOrientation, 100);
-    });
-    
-    // Initial check
-    checkOrientation();
-  }
-
-  // ---------- Assets ----------
-  function loadImage(src) {
-    const img = new Image();
-    img.src = src;
-    img._ready = false;
-    img.onload = () => img._ready = true;
-    img.onerror = () => console.error("Image failed to load:", src);
-    return img;
-  }
-
-  const bg = loadImage("bg.png");
-  const playerImg = loadImage("player.png");
-
-  const rewardSources = [
-    "reward_trip_strawberry.png",
-    "reward_trip_raspberry.png",
-    "reward_trip_sugarfree_circus.png",
-    "reward_trip_watermelon.png",
-    "reward_trip_orange_cola.png",
-  ];
-  const rewardImgs = rewardSources.map(loadImage);
-
-  const obstacleSources = [
-    "obstacle_rock.png",
-    "obstacle_bag.png",
-    "obstacle_scooter.png",
-  ];
-  const obstacleImgs = obstacleSources.map(loadImage);
-
-  // Background tiling state
-  let bgX = 0;
-  let bgScale = 1;
-  let bgDrawW = 0;
-  const BG_SPEED_FACTOR = 0.35;
-
-  bg.onload = () => {
-    bg._ready = true;
-    bgScale = H / bg.naturalHeight;
-    bgDrawW = Math.round(bg.naturalWidth * bgScale);
-  };
-
-  // ---------- Game constants ----------
-  const GROUND_Y = 375;
-
-  // Make physics time-based (px/s, px/s^2) so desktop and mobile feel the same
-  const GRAVITY = 2200;          // px/s^2
-  const MOVE_SPEED = 300;        // px/s
-  const JUMP_VELOCITY = -930;    // px/s
-
-  const PLAYER_Y_LIFT = 0;
-
-  // Variable jump tuning (press and hold)
-  // Bigger jump starts only after threshold, so it requires a longer press.
-  const JUMP_HOLD_THRESHOLD_MS = 140;  // how long you must hold before "big jump" starts
-  const JUMP_HOLD_MAX_MS = 420;        // max hold time that affects the jump
-  const JUMP_HOLD_GRAVITY_FACTOR = 0.55; // at full hold, gravity is multiplied by this during ascent (lower = floatier)
-
-  // --- No-overlap spawning (sprites, not hitboxes) ---
-  const OBSTACLE_GAP_X = 400;
-  const PICKUP_GAP_X = 30;
-  const MIX_GAP_X = 40;
-  const SPAWN_GAP_Y = 10;
-
-  // --- Obstacle spawn spacing by distance (pixels) ---
-  const OBSTACLE_DIST_MIN = 320;
-  const OBSTACLE_DIST_MAX = 950;
-  const OBSTACLE_LONG_CHANCE = 0.20;
-  const OBSTACLE_LONG_EXTRA_MIN = 450;
-  const OBSTACLE_LONG_EXTRA_MAX = 1100;
-
-  // World speed (px/s)
-  const WORLD_SPEED_START = 190;   // ~3.2 px/frame at 60fps
-  const WORLD_ACCEL = 12;          // px/s^2 (how fast it ramps up)
-  const WORLD_SPEED_MAX = 520;
-
-  // ---------- Helpers ----------
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function rand(min, max) { return min + Math.random() * (max - min); }
-  function lerp(a, b, t) { return a + (b - a) * t; }
-
-  function rectsOverlap(a, b) {
-    return (
-      a.x < b.x + b.w &&
-      a.x + a.w > b.x &&
-      a.y < b.y + b.h &&
-      a.y + a.h > b.y
-    );
-  }
-
-  function rectsOverlapPad(a, b, padX, padY) {
-    return (
-      (a.x - padX) < (b.x + b.w + padX) &&
-      (a.x + a.w + padX) > (b.x - padX) &&
-      (a.y - padY) < (b.y + b.h + padY) &&
-      (a.y + a.h + padY) > (b.y - padY)
-    );
-  }
-
-  function obstacleSpriteRect(ob) {
-    return { x: ob.x - ob.offX, y: ob.y - ob.offY, w: ob.drawW, h: ob.drawH };
-  }
-  function collectObstacleSpriteRects() { return obstacles.map(obstacleSpriteRect); }
-  function collectPickupSpriteRects() { return pickups.map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h })); }
-
-  function resolveSpawnX(candidateRect, existingRects, padX, padY) {
-    let safety = 0;
-    let moved = true;
-
-    while (moved && safety < 60) {
-      moved = false;
-      safety++;
-
-      for (const r of existingRects) {
-        if (rectsOverlapPad(candidateRect, r, padX, padY)) {
-          candidateRect.x = r.x + r.w + padX;
-          moved = true;
+      function checkOrientation() {
+        if (IS_MOBILE) {
+          if (isLandscape()) {
+            orientationMessage.classList.remove('show');
+            hintText.classList.add('hide-on-mobile-landscape');
+            scaleCanvasForMobile();
+          } else {
+            orientationMessage.classList.add('show');
+            hintText.classList.remove('hide-on-mobile-landscape');
+          }
         }
       }
-    }
-  }
 
-  function pickNextObstacleDistance() {
-    let d = rand(OBSTACLE_DIST_MIN, OBSTACLE_DIST_MAX);
-    if (Math.random() < OBSTACLE_LONG_CHANCE) d += rand(OBSTACLE_LONG_EXTRA_MIN, OBSTACLE_LONG_EXTRA_MAX);
-    return d;
-  }
+      function scaleCanvasForMobile() {
+        if (!IS_MOBILE) return;
 
-  // ---------- Player ----------
-  const player = {
-    x: MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100,
-    y: GROUND_Y - 45 - PLAYER_Y_LIFT,
-    w: 70,
-    h: 45,
-    drawW: 95,
-    drawH: 160,
-    vx: 0,
-    vy: 0,
-    onGround: true,
-    facing: 1,
-  };
+        const maxWidth = window.innerWidth;
+        const maxHeight = window.innerHeight;
+        const aspectRatio = W / H;
 
-  // ---------- World state ----------
-  let obstacles = [];
-  let pickups = [];
-  let score = 0;
-  let gameOver = false;
-  let difficulty = null; // 'easy' or 'normal'
-  let gameStarted = false;
+        // Calculate scale based on both width and height, use the smaller one
+        const scaleByWidth = maxWidth / W;
+        const scaleByHeight = maxHeight / H;
+        const scale = Math.min(scaleByWidth, scaleByHeight);
 
-  // ---------- High scores ----------
-  const HIGH_SCORES_KEY = 'roboPeliHighScores';
-  const MAX_HIGH_SCORES = 10;
-  let scoreInputShown = false;
+        // Apply scaling
+        const newWidth = W * scale;
+        const newHeight = H * scale;
 
-  let worldSpeed = WORLD_SPEED_START;
-  let spawnPickupTimer = 0;
-  let obstacleDistLeft = 0;
-
-  // ---------- Input state (supports hold) ----------
-  const keys = new Set();
-  let jumpHeld = false;
-  let jumpPressedThisFrame = false;
-  let jumpHoldStartMs = 0;
-  let jumpStartedMs = 0; // when the current jump began
-
-  window.addEventListener("keydown", (e) => {
-    if (e.code === "Space") e.preventDefault();
-    keys.add(e.code);
-
-    if (e.code === "KeyR") {
-      if (gameOver && !scoreInputShown) {
-        // Return to difficulty menu on restart (but not if score input is showing)
-        gameStarted = false;
-        difficulty = null;
-        gameOver = false;
-        scoreInputShown = false;
-        difficultyMenu.classList.remove('hidden');
-      }
-    }
-
-    if (e.code === "Space" && !MOBILE_TAP_ONLY) {
-      // only start jump input on ground, avoids mid-air re-press effects
-      if (!jumpHeld && !gameOver && player.onGround) {
-        jumpPressedThisFrame = true;
-        jumpHeld = true;
-        jumpHoldStartMs = performance.now();
-      }
-    }
-  });
-
-  window.addEventListener("keyup", (e) => {
-    keys.delete(e.code);
-    if (e.code === "Space" && !MOBILE_TAP_ONLY) {
-      jumpHeld = false;
-    }
-  });
-
-  // Mobile: pointerdown starts jump and holding affects jump, pointerup ends hold
-  if (MOBILE_TAP_ONLY) {
-    canvas.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-
-      if (gameOver && !scoreInputShown) {
-        // Return to difficulty menu on restart (but not if score input is showing)
-        gameStarted = false;
-        difficulty = null;
-        gameOver = false;
-        scoreInputShown = false;
-        difficultyMenu.classList.remove('hidden');
-        return;
+        canvas.style.width = newWidth + 'px';
+        canvas.style.height = newHeight + 'px';
       }
 
-      if (!player.onGround) return; // no mid-air press effects
+      // Listen for orientation changes
+      if (IS_MOBILE) {
+        // Screen Orientation API
+        if (screen.orientation) {
+          screen.orientation.addEventListener('change', checkOrientation);
+        }
+        // Fallback: window resize and orientationchange
+        window.addEventListener('resize', checkOrientation);
+        window.addEventListener('orientationchange', () => {
+          // Small delay to let orientation settle
+          setTimeout(checkOrientation, 100);
+        });
 
-      jumpPressedThisFrame = true;
-      jumpHeld = true;
-      jumpHoldStartMs = performance.now();
-    }, { passive: false });
+        // Initial check
+        checkOrientation();
+      }
 
-    const endHold = () => { jumpHeld = false; };
-    window.addEventListener("pointerup", endHold, { passive: true });
-    window.addEventListener("pointercancel", endHold, { passive: true });
-    window.addEventListener("pointerleave", endHold, { passive: true });
-  }
+      // ---------- Assets ----------
+      function loadImage(src) {
+        const img = new Image();
+        img.src = src;
+        img._ready = false;
+        img.onload = () => img._ready = true;
+        img.onerror = () => console.error("Image failed to load:", src);
+        return img;
+      }
 
-  // ---------- High scores functions ----------
-  function getHighScores() {
-    const scores = localStorage.getItem(HIGH_SCORES_KEY);
-    return scores ? JSON.parse(scores) : [];
-  }
+      const bg = loadImage("bg.png");
+      const playerImg = loadImage("player.png");
 
-  function saveHighScore(name, score) {
-    const scores = getHighScores();
-    scores.push({ name, score, date: new Date().toISOString() });
-    scores.sort((a, b) => b.score - a.score);
-    scores.splice(MAX_HIGH_SCORES);
-    localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores));
-  }
+      const rewardSources = [
+        "reward_trip_strawberry.png",
+        "reward_trip_raspberry.png",
+        "reward_trip_sugarfree_circus.png",
+        "reward_trip_watermelon.png",
+        "reward_trip_orange_cola.png",
+      ];
+      const rewardImgs = rewardSources.map(loadImage);
 
-  function isHighScore(score) {
-    const scores = getHighScores();
-    if (scores.length < MAX_HIGH_SCORES) return true;
-    return score > scores[scores.length - 1].score;
-  }
+      const obstacleSources = [
+        "obstacle_rock.png",
+        "obstacle_bag.png",
+        "obstacle_scooter.png",
+      ];
+      const obstacleImgs = obstacleSources.map(loadImage);
 
-  function showScoreInput() {
-    const finalScore = Math.floor(score);
-    document.getElementById('final-score-display').textContent = finalScore;
-    document.getElementById('score-input-overlay').classList.add('show');
-    document.getElementById('player-name-input').value = '';
-    document.getElementById('player-name-input').focus();
-    scoreInputShown = true;
-  }
+      // Background tiling state
+      let bgX = 0;
+      let bgScale = 1;
+      let bgDrawW = 0;
+      const BG_SPEED_FACTOR = 0.35;
 
-  // Make functions global for onclick handlers
-  window.saveScore = function() {
-    const nameInput = document.getElementById('player-name-input');
-    const name = nameInput.value.trim() || 'Anonyymi';
-    saveHighScore(name, Math.floor(score));
-    document.getElementById('score-input-overlay').classList.remove('show');
-    // Return to difficulty menu
-    gameStarted = false;
-    difficulty = null;
-    gameOver = false;
-    scoreInputShown = false;
-    difficultyMenu.classList.remove('hidden');
-  };
+      bg.onload = () => {
+        bg._ready = true;
+        bgScale = H / bg.naturalHeight;
+        bgDrawW = Math.round(bg.naturalWidth * bgScale);
+      };
 
-  window.skipScore = function() {
-    document.getElementById('score-input-overlay').classList.remove('show');
-    // Return to difficulty menu
-    gameStarted = false;
-    difficulty = null;
-    gameOver = false;
-    scoreInputShown = false;
-    difficultyMenu.classList.remove('hidden');
-  };
+      // ---------- Game constants ----------
+      const GROUND_Y = 375;
 
-  window.showHighScores = function() {
-    const scores = getHighScores();
-    const listElement = document.getElementById('high-scores-list');
-    listElement.innerHTML = '';
-    
-    if (scores.length === 0) {
-      const emptyItem = document.createElement('li');
-      emptyItem.textContent = 'Ei vielä tuloksia';
-      emptyItem.style.padding = '20px';
-      emptyItem.style.color = '#999';
-      listElement.appendChild(emptyItem);
-    } else {
-      scores.forEach((item, index) => {
-        const listItem = document.createElement('li');
-        listItem.className = 'high-score-item' + (index === 0 ? ' top' : '');
-        
-        const rank = document.createElement('span');
-        rank.className = 'high-score-rank';
-        rank.textContent = (index + 1) + '.';
-        
-        const name = document.createElement('span');
-        name.className = 'high-score-name';
-        name.textContent = item.name;
-        
-        const score = document.createElement('span');
-        score.className = 'high-score-score';
-        score.textContent = Math.floor(item.score);
-        
-        listItem.appendChild(rank);
-        listItem.appendChild(name);
-        listItem.appendChild(score);
-        listElement.appendChild(listItem);
+      // Make physics time-based (px/s, px/s^2) so desktop and mobile feel the same
+      const GRAVITY = 2200;          // px/s^2
+      const MOVE_SPEED = 300;        // px/s
+      const JUMP_VELOCITY = -930;    // px/s
+
+      const PLAYER_Y_LIFT = 0;
+
+      // Variable jump tuning (press and hold)
+      // Bigger jump starts only after threshold, so it requires a longer press.
+      const JUMP_HOLD_THRESHOLD_MS = 140;  // how long you must hold before "big jump" starts
+      const JUMP_HOLD_MAX_MS = 420;        // max hold time that affects the jump
+      const JUMP_HOLD_GRAVITY_FACTOR = 0.55; // at full hold, gravity is multiplied by this during ascent (lower = floatier)
+
+      // --- No-overlap spawning (sprites, not hitboxes) ---
+      const OBSTACLE_GAP_X = 400;
+      const PICKUP_GAP_X = 30;
+      const MIX_GAP_X = 40;
+      const SPAWN_GAP_Y = 10;
+
+      // --- Obstacle spawn spacing by distance (pixels) ---
+      const OBSTACLE_DIST_MIN = 320;
+      const OBSTACLE_DIST_MAX = 950;
+      const OBSTACLE_LONG_CHANCE = 0.20;
+      const OBSTACLE_LONG_EXTRA_MIN = 450;
+      const OBSTACLE_LONG_EXTRA_MAX = 1100;
+
+      // World speed (px/s)
+      const WORLD_SPEED_START = 190;   // ~3.2 px/frame at 60fps
+      const WORLD_ACCEL = 12;          // px/s^2 (how fast it ramps up)
+      const WORLD_SPEED_MAX = 520;
+
+      // ---------- Helpers ----------
+      function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+      function rand(min, max) { return min + Math.random() * (max - min); }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+
+      function rectsOverlap(a, b) {
+        return (
+          a.x < b.x + b.w &&
+          a.x + a.w > b.x &&
+          a.y < b.y + b.h &&
+          a.y + a.h > b.y
+        );
+      }
+
+      function rectsOverlapPad(a, b, padX, padY) {
+        return (
+          (a.x - padX) < (b.x + b.w + padX) &&
+          (a.x + a.w + padX) > (b.x - padX) &&
+          (a.y - padY) < (b.y + b.h + padY) &&
+          (a.y + a.h + padY) > (b.y - padY)
+        );
+      }
+
+      function obstacleSpriteRect(ob) {
+        return { x: ob.x - ob.offX, y: ob.y - ob.offY, w: ob.drawW, h: ob.drawH };
+      }
+      function collectObstacleSpriteRects() { return obstacles.map(obstacleSpriteRect); }
+      function collectPickupSpriteRects() { return pickups.map(p => ({ x: p.x, y: p.y, w: p.w, h: p.h })); }
+
+      function resolveSpawnX(candidateRect, existingRects, padX, padY) {
+        let safety = 0;
+        let moved = true;
+
+        while (moved && safety < 60) {
+          moved = false;
+          safety++;
+
+          for (const r of existingRects) {
+            if (rectsOverlapPad(candidateRect, r, padX, padY)) {
+              candidateRect.x = r.x + r.w + padX;
+              moved = true;
+            }
+          }
+        }
+      }
+
+      function pickNextObstacleDistance() {
+        let d = rand(OBSTACLE_DIST_MIN, OBSTACLE_DIST_MAX);
+        if (Math.random() < OBSTACLE_LONG_CHANCE) d += rand(OBSTACLE_LONG_EXTRA_MIN, OBSTACLE_LONG_EXTRA_MAX);
+        return d;
+      }
+
+      // ---------- Player ----------
+      const player = {
+        x: MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100,
+        y: GROUND_Y - 45 - PLAYER_Y_LIFT,
+        w: 70,
+        h: 45,
+        drawW: 95,
+        drawH: 160,
+        vx: 0,
+        vy: 0,
+        onGround: true,
+        facing: 1,
+      };
+
+      // ---------- World state ----------
+      let obstacles = [];
+      let pickups = [];
+      let score = 0;
+      let gameOver = false;
+      let difficulty = null; // 'easy' or 'normal'
+      let gameStarted = false;
+
+      // ---------- High scores ----------
+      const HIGH_SCORES_KEY = 'roboPeliHighScores';
+      const MAX_HIGH_SCORES = 10;
+      let scoreInputShown = false;
+
+      let worldSpeed = WORLD_SPEED_START;
+      let spawnPickupTimer = 0;
+      let obstacleDistLeft = 0;
+
+      // ---------- Input state (supports hold) ----------
+      const keys = new Set();
+      let jumpHeld = false;
+      let jumpPressedThisFrame = false;
+      let jumpHoldStartMs = 0;
+      let jumpStartedMs = 0; // when the current jump began
+
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space") e.preventDefault();
+        keys.add(e.code);
+
+        if (e.code === "KeyR") {
+          if (gameOver && !scoreInputShown) {
+            // Return to difficulty menu on restart (but not if score input is showing)
+            gameStarted = false;
+            difficulty = null;
+            gameOver = false;
+            scoreInputShown = false;
+            difficultyMenu.classList.remove('hidden');
+          }
+        }
+
+        if (e.code === "Space" && !MOBILE_TAP_ONLY) {
+          // only start jump input on ground, avoids mid-air re-press effects
+          if (!jumpHeld && !gameOver && player.onGround) {
+            jumpPressedThisFrame = true;
+            jumpHeld = true;
+            jumpHoldStartMs = performance.now();
+          }
+        }
       });
-    }
-    
-    document.getElementById('high-scores-overlay').classList.add('show');
-  };
 
-  window.hideHighScores = function() {
-    document.getElementById('high-scores-overlay').classList.remove('show');
-    // Ensure main menu is visible after closing scores
-    difficultyMenu.classList.remove('hidden');
-  };
+      window.addEventListener("keyup", (e) => {
+        keys.delete(e.code);
+        if (e.code === "Space" && !MOBILE_TAP_ONLY) {
+          jumpHeld = false;
+        }
+      });
 
-  // Allow Enter key to save score
-  const playerNameInput = document.getElementById('player-name-input');
-  if (playerNameInput) {
-    playerNameInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        saveScore();
+      // Mobile: pointerdown starts jump and holding affects jump, pointerup ends hold
+      if (MOBILE_TAP_ONLY) {
+        canvas.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+
+          if (gameOver && !scoreInputShown) {
+            // Return to difficulty menu on restart (but not if score input is showing)
+            gameStarted = false;
+            difficulty = null;
+            gameOver = false;
+            scoreInputShown = false;
+            difficultyMenu.classList.remove('hidden');
+            return;
+          }
+
+          if (!player.onGround) return; // no mid-air press effects
+
+          jumpPressedThisFrame = true;
+          jumpHeld = true;
+          jumpHoldStartMs = performance.now();
+        }, { passive: false });
+
+        const endHold = () => { jumpHeld = false; };
+        window.addEventListener("pointerup", endHold, { passive: true });
+        window.addEventListener("pointercancel", endHold, { passive: true });
+        window.addEventListener("pointerleave", endHold, { passive: true });
       }
-    });
-  }
 
-  function reset() {
-    player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
-    player.y = GROUND_Y - player.h - PLAYER_Y_LIFT;
-    player.vx = 0;
-    player.vy = 0;
-    player.onGround = true;
-    player.facing = 1;
+      // ---------- High scores functions ----------
+      function getHighScores() {
+        const scores = localStorage.getItem(HIGH_SCORES_KEY);
+        return scores ? JSON.parse(scores) : [];
+      }
 
-    obstacles = [];
-    pickups = [];
-    score = 0;
-    gameOver = false;
-    scoreInputShown = false;
+      function saveHighScore(name, score) {
+        const scores = getHighScores();
+        scores.push({ name, score, date: new Date().toISOString() });
+        scores.sort((a, b) => b.score - a.score);
+        scores.splice(MAX_HIGH_SCORES);
+        localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores));
+      }
 
-    worldSpeed = WORLD_SPEED_START;
-    spawnPickupTimer = 0;
+      function isHighScore(score) {
+        const scores = getHighScores();
+        if (scores.length < MAX_HIGH_SCORES) return true;
+        return score > scores[scores.length - 1].score;
+      }
 
-    bgX = 0;
+      function showScoreInput() {
+        const finalScore = Math.floor(score);
+        document.getElementById('final-score-display').textContent = finalScore;
+        document.getElementById('score-input-overlay').classList.add('show');
+        document.getElementById('player-name-input').value = '';
+        document.getElementById('player-name-input').focus();
+        scoreInputShown = true;
+      }
 
-    if (difficulty === 'normal') {
-      obstacleDistLeft = pickNextObstacleDistance();
-    }
+      // Make functions global for onclick handlers
+      window.saveScore = function () {
+        const nameInput = document.getElementById('player-name-input');
+        const name = nameInput.value.trim() || 'Anonyymi';
+        saveHighScore(name, Math.floor(score));
+        document.getElementById('score-input-overlay').classList.remove('show');
+        // Return to difficulty menu
+        gameStarted = false;
+        difficulty = null;
+        gameOver = false;
+        scoreInputShown = false;
+        difficultyMenu.classList.remove('hidden');
+      };
 
-    jumpHeld = false;
-    jumpPressedThisFrame = false;
-    jumpHoldStartMs = 0;
-    jumpStartedMs = 0;
-  }
+      window.skipScore = function () {
+        document.getElementById('score-input-overlay').classList.remove('show');
+        // Return to difficulty menu
+        gameStarted = false;
+        difficulty = null;
+        gameOver = false;
+        scoreInputShown = false;
+        difficultyMenu.classList.remove('hidden');
+      };
 
-  // ---------- Difficulty selection ----------
-  function startGame(selectedDifficulty) {
-    difficulty = selectedDifficulty;
-    gameStarted = true;
-    difficultyMenu.classList.add('hidden');
-    reset();
-  }
+      window.showHighScores = function () {
+        const scores = getHighScores();
+        const listElement = document.getElementById('high-scores-list');
+        listElement.innerHTML = '';
 
-  // Setup difficulty buttons
-  const difficultyButtons = document.querySelectorAll('.difficulty-button');
-  difficultyButtons.forEach(button => {
-    button.addEventListener('click', () => {
-      const selectedDifficulty = button.getAttribute('data-difficulty');
-      startGame(selectedDifficulty);
-    });
-  });
+        if (scores.length === 0) {
+          const emptyItem = document.createElement('li');
+          emptyItem.textContent = 'Ei vielä tuloksia';
+          emptyItem.style.padding = '20px';
+          emptyItem.style.color = '#999';
+          listElement.appendChild(emptyItem);
+        } else {
+          scores.forEach((item, index) => {
+            const listItem = document.createElement('li');
+            listItem.className = 'high-score-item' + (index === 0 ? ' top' : '');
 
-  // ---------- Spawning ----------
-  function spawnPickup() {
-    const type = Math.floor(Math.random() * rewardImgs.length);
+            const rank = document.createElement('span');
+            rank.className = 'high-score-rank';
+            rank.textContent = (index + 1) + '.';
 
-    const drawH = 72;
-    const img = rewardImgs[type];
-    const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 0.43;
-    const drawW = Math.max(28, Math.round(drawH * ratio));
+            const name = document.createElement('span');
+            name.className = 'high-score-name';
+            name.textContent = item.name;
 
-    const inAir = Math.random() < 0.65;
-    const yAir = (GROUND_Y - player.h - PLAYER_Y_LIFT - 110 - Math.random() * 80);
-    const yGround = (GROUND_Y - drawH - 6);
-    const y = clamp(inAir ? yAir : yGround, 30, GROUND_Y - drawH - 6);
+            const score = document.createElement('span');
+            score.className = 'high-score-score';
+            score.textContent = Math.floor(item.score);
 
-    const cand = { x: W + 20, y, w: drawW, h: drawH };
+            listItem.appendChild(rank);
+            listItem.appendChild(name);
+            listItem.appendChild(score);
+            listElement.appendChild(listItem);
+          });
+        }
 
-    resolveSpawnX(cand, collectPickupSpriteRects(), PICKUP_GAP_X, SPAWN_GAP_Y);
-    resolveSpawnX(cand, collectObstacleSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+        document.getElementById('high-scores-overlay').classList.add('show');
+      };
 
-    pickups.push({ type, x: cand.x, y: cand.y, w: cand.w, h: cand.h, collected: false });
-  }
+      window.hideHighScores = function () {
+        document.getElementById('high-scores-overlay').classList.remove('show');
+        // Ensure main menu is visible after closing scores
+        difficultyMenu.classList.remove('hidden');
+      };
 
-  function spawnObstacle() {
-    const type = Math.floor(Math.random() * obstacleImgs.length);
+      // Allow Enter key to save score
+      const playerNameInput = document.getElementById('player-name-input');
+      if (playerNameInput) {
+        playerNameInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            saveScore();
+          }
+        });
+      }
 
-    // Sizes: bag about same height as rock, scooter higher
-    const drawH =
-      type === 0 ? 55 :   // rock
-      type === 1 ? 55 :   // bag (same as rock)
-      105;                // scooter (higher)
+      function reset() {
+        player.x = MOBILE_TAP_ONLY ? MOBILE_PLAYER_X : 100;
+        player.y = GROUND_Y - player.h - PLAYER_Y_LIFT;
+        player.vx = 0;
+        player.vy = 0;
+        player.onGround = true;
+        player.facing = 1;
 
-    const img = obstacleImgs[type];
-    const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.6;
-    const drawW = Math.max(55, Math.round(drawH * ratio));
+        obstacles = [];
+        pickups = [];
+        score = 0;
+        gameOver = false;
+        scoreInputShown = false;
 
-    const boxW = Math.round(drawW * (type === 2 ? 0.70 : 0.65));
-    const boxH = Math.round(drawH * (type === 1 ? 0.70 : 0.60));
+        worldSpeed = WORLD_SPEED_START;
+        spawnPickupTimer = 0;
 
-    const offX = Math.round((drawW - boxW) / 2);
-    const offY = Math.round(drawH - boxH);
+        bgX = 0;
 
-    const candSprite = { x: W + 20, y: GROUND_Y - drawH, w: drawW, h: drawH };
+        if (difficulty === 'normal') {
+          obstacleDistLeft = pickNextObstacleDistance();
+        }
 
-    resolveSpawnX(candSprite, collectObstacleSpriteRects(), OBSTACLE_GAP_X, SPAWN_GAP_Y);
-    resolveSpawnX(candSprite, collectPickupSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+        jumpHeld = false;
+        jumpPressedThisFrame = false;
+        jumpHoldStartMs = 0;
+        jumpStartedMs = 0;
+      }
 
-    const x = candSprite.x + offX;
-    const y = candSprite.y + offY;
+      // ---------- Difficulty selection ----------
+      function startGame(selectedDifficulty) {
+        difficulty = selectedDifficulty;
+        gameStarted = true;
+        difficultyMenu.classList.add('hidden');
+        reset();
+      }
 
-    obstacles.push({ type, x, y, w: boxW, h: boxH, drawW, drawH, offX, offY });
-  }
+      // Setup difficulty buttons
+      const difficultyButtons = document.querySelectorAll('.difficulty-button');
+      difficultyButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const selectedDifficulty = button.getAttribute('data-difficulty');
+          startGame(selectedDifficulty);
+        });
+      });
 
-  // ---------- Update ----------
-  function update(dtMs) {
-    // Don't update game if orientation message is showing or game hasn't started
-    if (IS_MOBILE && !isLandscape()) return;
-    if (!gameStarted || difficulty === null) return;
-    
-    if (gameOver) return;
+      // ---------- Spawning ----------
+      function spawnPickup() {
+        const type = Math.floor(Math.random() * rewardImgs.length);
 
-    const dt = Math.min(0.05, dtMs / 1000); // clamp to avoid huge physics steps on tab switch
+        const drawH = 72;
+        const img = rewardImgs[type];
+        const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 0.43;
+        const drawW = Math.max(28, Math.round(drawH * ratio));
 
-    // Background scroll (time-based)
-    if (bg._ready && bgDrawW > 0) {
-      bgX -= worldSpeed * BG_SPEED_FACTOR * dt;
-      bgX = bgX % bgDrawW;
-      if (bgX > 0) bgX -= bgDrawW;
-    }
+        const inAir = Math.random() < 0.65;
+        const yAir = (GROUND_Y - player.h - PLAYER_Y_LIFT - 110 - Math.random() * 80);
+        const yGround = (GROUND_Y - drawH - 6);
+        const y = clamp(inAir ? yAir : yGround, 30, GROUND_Y - drawH - 6);
 
-    // Speed ramps up slowly (time-based)
-    worldSpeed = Math.min(WORLD_SPEED_MAX, worldSpeed + WORLD_ACCEL * dt);
+        const cand = { x: W + 20, y, w: drawW, h: drawH };
 
-    // Movement input
-    if (MOBILE_TAP_ONLY) {
-      player.vx = 0;
-      player.x = MOBILE_PLAYER_X;
-    } else {
-      let dir = 0;
-      if (keys.has("ArrowLeft")) dir -= 1;
-      if (keys.has("ArrowRight")) dir += 1;
-      player.vx = dir * MOVE_SPEED;
-      if (dir !== 0) player.facing = dir;
+        resolveSpawnX(cand, collectPickupSpriteRects(), PICKUP_GAP_X, SPAWN_GAP_Y);
+        resolveSpawnX(cand, collectObstacleSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
 
-      player.x += player.vx * dt;
-      player.x = clamp(player.x, 0, W - player.w);
-    }
+        pickups.push({ type, x: cand.x, y: cand.y, w: cand.w, h: cand.h, collected: false });
+      }
 
-    // Jump start
-    if (jumpPressedThisFrame && player.onGround) {
-      player.vy = JUMP_VELOCITY;
-      player.onGround = false;
-      jumpStartedMs = performance.now();
-    }
-    jumpPressedThisFrame = false;
+      function spawnObstacle() {
+        const type = Math.floor(Math.random() * obstacleImgs.length);
 
-    // Variable jump: while holding, reduce gravity during ascent after a threshold
-    let g = GRAVITY;
-    if (!player.onGround && jumpHeld && player.vy < 0) {
-      const now = performance.now();
-      const heldMs = now - jumpHoldStartMs;
-      const jumpAgeMs = now - jumpStartedMs;
+        // Sizes: bag about same height as rock, scooter higher
+        const drawH =
+          type === 0 ? 55 :   // rock
+            type === 1 ? 55 :   // bag (same as rock)
+              105;                // scooter (higher)
 
-      // Only allow hold effect if this hold belongs to the current jump (avoid edge weirdness)
-      if (jumpAgeMs >= 0 && heldMs >= 0) {
-        if (heldMs > JUMP_HOLD_THRESHOLD_MS) {
-          const t = clamp((heldMs - JUMP_HOLD_THRESHOLD_MS) / (JUMP_HOLD_MAX_MS - JUMP_HOLD_THRESHOLD_MS), 0, 1);
-          const gravityFactor = lerp(1.0, JUMP_HOLD_GRAVITY_FACTOR, t);
-          g = GRAVITY * gravityFactor;
+        const img = obstacleImgs[type];
+        const ratio = (img._ready && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.6;
+        const drawW = Math.max(55, Math.round(drawH * ratio));
+
+        const boxW = Math.round(drawW * (type === 2 ? 0.70 : 0.65));
+        const boxH = Math.round(drawH * (type === 1 ? 0.70 : 0.60));
+
+        const offX = Math.round((drawW - boxW) / 2);
+        const offY = Math.round(drawH - boxH);
+
+        const candSprite = { x: W + 20, y: GROUND_Y - drawH, w: drawW, h: drawH };
+
+        resolveSpawnX(candSprite, collectObstacleSpriteRects(), OBSTACLE_GAP_X, SPAWN_GAP_Y);
+        resolveSpawnX(candSprite, collectPickupSpriteRects(), MIX_GAP_X, SPAWN_GAP_Y);
+
+        const x = candSprite.x + offX;
+        const y = candSprite.y + offY;
+
+        obstacles.push({ type, x, y, w: boxW, h: boxH, drawW, drawH, offX, offY });
+      }
+
+      // ---------- Update ----------
+      function update(dtMs) {
+        // Don't update game if orientation message is showing or game hasn't started
+        if (IS_MOBILE && !isLandscape()) return;
+        if (!gameStarted || difficulty === null) return;
+
+        if (gameOver) return;
+
+        const dt = Math.min(0.05, dtMs / 1000); // clamp to avoid huge physics steps on tab switch
+
+        // Background scroll (time-based)
+        if (bg._ready && bgDrawW > 0) {
+          bgX -= worldSpeed * BG_SPEED_FACTOR * dt;
+          bgX = bgX % bgDrawW;
+          if (bgX > 0) bgX -= bgDrawW;
+        }
+
+        // Speed ramps up slowly (time-based)
+        worldSpeed = Math.min(WORLD_SPEED_MAX, worldSpeed + WORLD_ACCEL * dt);
+
+        // Movement input
+        if (MOBILE_TAP_ONLY) {
+          player.vx = 0;
+          player.x = MOBILE_PLAYER_X;
+        } else {
+          let dir = 0;
+          if (keys.has("ArrowLeft")) dir -= 1;
+          if (keys.has("ArrowRight")) dir += 1;
+          player.vx = dir * MOVE_SPEED;
+          if (dir !== 0) player.facing = dir;
+
+          player.x += player.vx * dt;
+          player.x = clamp(player.x, 0, W - player.w);
+        }
+
+        // Jump start
+        if (jumpPressedThisFrame && player.onGround) {
+          player.vy = JUMP_VELOCITY;
+          player.onGround = false;
+          jumpStartedMs = performance.now();
+        }
+        jumpPressedThisFrame = false;
+
+        // Variable jump: while holding, reduce gravity during ascent after a threshold
+        let g = GRAVITY;
+        if (!player.onGround && jumpHeld && player.vy < 0) {
+          const now = performance.now();
+          const heldMs = now - jumpHoldStartMs;
+          const jumpAgeMs = now - jumpStartedMs;
+
+          // Only allow hold effect if this hold belongs to the current jump (avoid edge weirdness)
+          if (jumpAgeMs >= 0 && heldMs >= 0) {
+            if (heldMs > JUMP_HOLD_THRESHOLD_MS) {
+              const t = clamp((heldMs - JUMP_HOLD_THRESHOLD_MS) / (JUMP_HOLD_MAX_MS - JUMP_HOLD_THRESHOLD_MS), 0, 1);
+              const gravityFactor = lerp(1.0, JUMP_HOLD_GRAVITY_FACTOR, t);
+              g = GRAVITY * gravityFactor;
+            }
+          }
+        }
+
+        // Physics
+        player.vy += g * dt;
+        player.y += player.vy * dt;
+
+        // Ground collision
+        const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
+        if (player.y + player.h >= effectiveGround) {
+          player.y = effectiveGround - player.h;
+          player.vy = 0;
+          player.onGround = true;
+          jumpHeld = false; // landing ends hold effect
+        }
+
+        // Spawning: obstacles by distance (time-based scroll distance) - only in normal difficulty
+        if (difficulty === 'normal') {
+          obstacleDistLeft -= worldSpeed * dt;
+          if (obstacleDistLeft <= 0) {
+            spawnObstacle();
+            obstacleDistLeft = pickNextObstacleDistance();
+          }
+        }
+
+        // Spawning: pickups by timer (still ms)
+        spawnPickupTimer -= dtMs;
+        if (spawnPickupTimer <= 0) {
+          spawnPickup();
+          spawnPickupTimer = 450 + Math.random() * 450;
+        }
+
+        // Move world objects (time-based)
+        if (difficulty === 'normal') {
+          for (const ob of obstacles) ob.x -= worldSpeed * dt;
+        }
+        for (const p of pickups) p.x -= worldSpeed * dt;
+
+        // Cleanup off-screen
+        obstacles = obstacles.filter(ob => ob.x + ob.w > -120);
+        pickups = pickups.filter(p => p.x + p.w > -120 && !p.collected);
+
+        // Collisions: obstacles - only in normal difficulty
+        if (difficulty === 'normal') {
+          for (const ob of obstacles) {
+            if (rectsOverlap(player, ob)) {
+              gameOver = true;
+              return;
+            }
+          }
+        }
+
+        // Collisions: pickups
+        for (const p of pickups) {
+          if (!p.collected && rectsOverlap(player, p)) {
+            p.collected = true;
+            score += 100;
+          }
+        }
+
+        // Score trickle (kept as before, ms-based)
+        score += 0.01 * dtMs;
+      }
+
+      // ---------- Draw ----------
+      function draw() {
+        // Don't draw game if orientation message is showing or game hasn't started
+        if (IS_MOBILE && !isLandscape()) return;
+        if (!gameStarted || difficulty === null) return;
+
+        // Background
+        if (bg._ready && bgDrawW > 0) {
+          const x0 = Math.floor(bgX);
+          for (let x = x0; x < W; x += bgDrawW) ctx.drawImage(bg, x, 0, bgDrawW, H);
+        } else {
+          ctx.clearRect(0, 0, W, H);
+        }
+
+        // Pickups
+        for (const p of pickups) {
+          const img = rewardImgs[p.type];
+          if (img && img._ready) ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
+          else { ctx.fillStyle = "#ffd54a"; ctx.fillRect(p.x, p.y, p.w, p.h); }
+        }
+
+        // Obstacles - only draw in normal difficulty
+        if (difficulty === 'normal') {
+          for (const ob of obstacles) {
+            const img = obstacleImgs[ob.type];
+            const drawX = Math.round(ob.x - ob.offX);
+            const drawY = Math.round(ob.y - ob.offY);
+            if (img && img._ready) ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
+            else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
+          }
+        }
+
+        // Player
+        if (playerImg._ready) {
+          const drawX = player.x + player.w / 2 - player.drawW / 2;
+          const drawY = player.y + player.h - player.drawH;
+
+          ctx.save();
+          if (!MOBILE_TAP_ONLY && player.facing === -1) {
+            ctx.translate(drawX + player.drawW / 2, 0);
+            ctx.scale(-1, 1);
+            ctx.translate(-(drawX + player.drawW / 2), 0);
+          }
+          ctx.drawImage(playerImg, Math.round(drawX), Math.round(drawY), player.drawW, player.drawH);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = "#e6e6e6";
+          ctx.fillRect(player.x, player.y, player.w, player.h);
+        }
+
+        // HUD background
+        const hudPaddingX = 10;
+        const hudPaddingY = 8;
+        const hudWidth = 170;
+        const hudHeight = 50;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(8, 8, hudWidth, hudHeight);
+
+        // HUD text
+        ctx.fillStyle = "#f5f5f5";
+        ctx.font = "16px system-ui, sans-serif";
+        ctx.fillText("Pisteet: " + Math.floor(score), 12 + hudPaddingX, 24);
+
+        const speedKmh = (worldSpeed / 100).toFixed(1);
+        ctx.fillText("Nopeus: " + speedKmh, 12 + hudPaddingX, 44);
+
+        if (gameOver) {
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(0, 0, W, H);
+
+          ctx.fillStyle = "#fff";
+          ctx.font = "28px system-ui, sans-serif";
+          ctx.fillText("Game Over", W / 2 - 80, H / 2 - 30);
+
+          ctx.font = "16px system-ui, sans-serif";
+          const finalScore = Math.floor(score);
+          ctx.fillText("Pisteesi: " + finalScore, W / 2 - 50, H / 2);
+
+          // Check if it's a high score
+          if (!scoreInputShown && isHighScore(finalScore)) {
+            setTimeout(() => showScoreInput(), 500); // Small delay for better UX
+          } else if (!scoreInputShown) {
+            ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W / 2 - 135, H / 2 + 30);
+          }
         }
       }
-    }
 
-    // Physics
-    player.vy += g * dt;
-    player.y += player.vy * dt;
-
-    // Ground collision
-    const effectiveGround = GROUND_Y - PLAYER_Y_LIFT;
-    if (player.y + player.h >= effectiveGround) {
-      player.y = effectiveGround - player.h;
-      player.vy = 0;
-      player.onGround = true;
-      jumpHeld = false; // landing ends hold effect
-    }
-
-    // Spawning: obstacles by distance (time-based scroll distance) - only in normal difficulty
-    if (difficulty === 'normal') {
-      obstacleDistLeft -= worldSpeed * dt;
-      if (obstacleDistLeft <= 0) {
-        spawnObstacle();
-        obstacleDistLeft = pickNextObstacleDistance();
+      // ---------- Loop ----------
+      let last = performance.now();
+      function loop(now) {
+        const dt = now - last;
+        last = now;
+        update(dt);
+        draw();
+        requestAnimationFrame(loop);
       }
-    }
 
-    // Spawning: pickups by timer (still ms)
-    spawnPickupTimer -= dtMs;
-    if (spawnPickupTimer <= 0) {
-      spawnPickup();
-      spawnPickupTimer = 450 + Math.random() * 450;
-    }
-
-    // Move world objects (time-based)
-    if (difficulty === 'normal') {
-      for (const ob of obstacles) ob.x -= worldSpeed * dt;
-    }
-    for (const p of pickups) p.x -= worldSpeed * dt;
-
-    // Cleanup off-screen
-    obstacles = obstacles.filter(ob => ob.x + ob.w > -120);
-    pickups = pickups.filter(p => p.x + p.w > -120 && !p.collected);
-
-    // Collisions: obstacles - only in normal difficulty
-    if (difficulty === 'normal') {
-      for (const ob of obstacles) {
-        if (rectsOverlap(player, ob)) {
-          gameOver = true;
-          return;
-        }
-      }
-    }
-
-    // Collisions: pickups
-    for (const p of pickups) {
-      if (!p.collected && rectsOverlap(player, p)) {
-        p.collected = true;
-        score += 100;
-      }
-    }
-
-    // Score trickle (kept as before, ms-based)
-    score += 0.01 * dtMs;
-  }
-
-  // ---------- Draw ----------
-  function draw() {
-    // Don't draw game if orientation message is showing or game hasn't started
-    if (IS_MOBILE && !isLandscape()) return;
-    if (!gameStarted || difficulty === null) return;
-    
-    // Background
-    if (bg._ready && bgDrawW > 0) {
-      const x0 = Math.floor(bgX);
-      for (let x = x0; x < W; x += bgDrawW) ctx.drawImage(bg, x, 0, bgDrawW, H);
-    } else {
-      ctx.clearRect(0, 0, W, H);
-    }
-
-    // Pickups
-    for (const p of pickups) {
-      const img = rewardImgs[p.type];
-      if (img && img._ready) ctx.drawImage(img, Math.round(p.x), Math.round(p.y), p.w, p.h);
-      else { ctx.fillStyle = "#ffd54a"; ctx.fillRect(p.x, p.y, p.w, p.h); }
-    }
-
-    // Obstacles - only draw in normal difficulty
-    if (difficulty === 'normal') {
-      for (const ob of obstacles) {
-        const img = obstacleImgs[ob.type];
-        const drawX = Math.round(ob.x - ob.offX);
-        const drawY = Math.round(ob.y - ob.offY);
-        if (img && img._ready) ctx.drawImage(img, drawX, drawY, ob.drawW, ob.drawH);
-        else { ctx.fillStyle = "#ff5a5a"; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
-      }
-    }
-
-    // Player
-    if (playerImg._ready) {
-      const drawX = player.x + player.w / 2 - player.drawW / 2;
-      const drawY = player.y + player.h - player.drawH;
-
-      ctx.save();
-      if (!MOBILE_TAP_ONLY && player.facing === -1) {
-        ctx.translate(drawX + player.drawW / 2, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-(drawX + player.drawW / 2), 0);
-      }
-      ctx.drawImage(playerImg, Math.round(drawX), Math.round(drawY), player.drawW, player.drawH);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = "#e6e6e6";
-      ctx.fillRect(player.x, player.y, player.w, player.h);
-    }
-
-    // HUD
-    ctx.fillStyle = "#cfcfcf";
-    ctx.font = "16px system-ui, sans-serif";
-    ctx.fillText("Score: " + Math.floor(score), 12, 24);
-    ctx.fillText("Speed: " + Math.round(worldSpeed), 12, 44);
-
-    if (gameOver) {
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(0, 0, W, H);
-
-      ctx.fillStyle = "#fff";
-      ctx.font = "28px system-ui, sans-serif";
-      ctx.fillText("Game Over", W/2 - 80, H/2 - 30);
-
-      ctx.font = "16px system-ui, sans-serif";
-      const finalScore = Math.floor(score);
-      ctx.fillText("Pisteesi: " + finalScore, W/2 - 50, H/2);
-      
-      // Check if it's a high score
-      if (!scoreInputShown && isHighScore(finalScore)) {
-        setTimeout(() => showScoreInput(), 500); // Small delay for better UX
-      } else if (!scoreInputShown) {
-        ctx.fillText(MOBILE_TAP_ONLY ? "Napauta aloittaaksesi alusta" : "Paina R aloittaaksesi alusta", W/2 - 135, H/2 + 30);
-      }
-    }
-  }
-
-  // ---------- Loop ----------
-  let last = performance.now();
-  function loop(now) {
-    const dt = now - last;
-    last = now;
-    update(dt);
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  // Don't start game automatically - wait for difficulty selection
-  requestAnimationFrame(loop);
-})();
-</script>
+      // Don't start game automatically - wait for difficulty selection
+      requestAnimationFrame(loop);
+    })();
+  </script>
 </body>
+
 </html>
